@@ -2,43 +2,41 @@
 
 Claude Code / Codex CLI 共通の作業ガイドです。コーディングエージェントは作業を始める前にここを一読してください。
 
-## Start Here
+## What This Project Is
 
-- このプロジェクトは Windows 専用の音声ビジュアライザです。WASAPI capture + wgpu 描画 + WGSL シェーダーで動きます。
-- 詳しい開発ルールは `CONTRIBUTING.md` を参照。
-- 実装方針が変わる場合は GitHub Issues / Pull Requests で残す。
+Windows 専用のリアルタイム音声ビジュアライザです。
+
+- 任意の WASAPI 入力デバイスから音声を取得
+- FFT で周波数スペクトラム + 時間領域波形を取り出す
+- それらを wgpu + WGSL シェーダーに渡して可視化
+- シェーダーファイルは `assets/` に置き、`--shader <path>` で起動時に選択、保存すると即ホットリロード
 
 ## Project Layout
 
-- `src/main.rs` — `winit 0.30` の ApplicationHandler。capture スレッドを立てて毎フレーム FFT → 波形整形 → wgpu に渡して描画。
-- `src/audio.rs` — WASAPI 共有モード capture を別スレッドで回し、リングバッファに mono サンプルを溜める。
-- `src/dsp.rs` — Hann + FFT (`spectrum-analyzer`) + log バンド集約 + dB スケール。
-- `src/render.rs` — wgpu (winit 0.30) のセットアップ。`Renderer::reload_shader` で WGSL のホットリロード。
-- `assets/*.wgsl` — フラグメントシェーダー。`--shader <path>` で起動時に選択、保存すると即反映。
-  - `spectrum.wgsl` — 96 本の周波数バー
-  - `ncs.wgsl` — リング + 内側パーティクルフィールド
-  - `proximity.wgsl` — 波形ベースの 3 色オシロリング (時間で円周方向に流れる)
-  - `proximity_still.wgsl` — スペクトラム駆動の 3 色リング (回らない、bass/mid/treble 別)
+- `src/main.rs` — `winit 0.30` の ApplicationHandler。capture スレッドを立てて毎フレーム音声を取り、FFT 整形 → wgpu に渡して描画。
+- `src/audio.rs` — WASAPI 共有モード capture を別スレッドで回し、リングバッファに mono サンプルを溜める。デバイスは friendly name の部分一致で選択。
+- `src/dsp.rs` — Hann + FFT (`spectrum-analyzer`) + log バンド集約 + dB スケール。シェーダーへは `[f32; N_BARS]` で渡す。
+- `src/render.rs` — wgpu (winit 0.30) のセットアップ。`Renderer::reload_shader` で WGSL のホットリロード、バリデーションエラーは旧パイプラインを維持して継続。
+- `assets/*.wgsl` — フラグメントシェーダー群。binding layout は以下:
+  - group(0) binding(0): `Bars` (storage, FFT バー値の配列)
+  - group(0) binding(1): `Globals` (uniform, resolution / time)
+  - group(0) binding(2): `wave` (storage, 平滑化済み時間領域波形)
 - `examples/*.rs` — 音声経路の検証用。本体ビルドとは独立に動く。
-  - `minifuse_loopback.rs` — 採用した経路 (`Mix 3/4` 入力 capture) の最小版
-  - `spotify_capture.rs` — Process Loopback Capture の検証 (排他モード非対応で却下)
-  - `record.rs` — デバイス全体 loopback (古い)
 
-## Audio Path (重要)
+## Audio Capture (重要)
 
-`Spotify → 排他モード → MiniFuse 1 → ハードウェア loopback (Mix 3/4) → WASAPI 入力 capture → chryth` という経路で取得します。Windows のユーザー空間 API では排他モードの音は普通の loopback で取れないため、オーディオインターフェース側のループバック機能を使うのが必須前提です。詳細は git log の検証コミット参照。
+汎用的に「WASAPI 入力デバイスから capture」する設計。デバイス名は `--device <部分一致>` で指定できます (デフォルト値は CLI 定義参照)。
 
-`Process Loopback Capture` 経路は仕様上 WASAPI 排他モードに非対応なので、本流には採用していません。アプリ単位 capture が欲しい時の参考として残してあるだけです。
+注意: Windows のユーザー空間 API では、特定アプリが排他モードで掴んだ音を普通の loopback で取得できません。アプリ単位 capture (Process Loopback Capture) も WASAPI 排他モードには未対応です。アプリが排他モードで再生してる音を可視化したい場合は、オーディオインターフェース側のハードウェアループバック機能を有効にして、その仮想入力デバイスを capture してください。
 
 ## Running
 
 ```powershell
-just run                              # spectrum.wgsl で起動
-just run-ncs                          # ncs.wgsl
-just run-proximity                    # proximity.wgsl (流れる)
-just run-proximity-still              # proximity_still.wgsl (回らない)
-cargo run -- --shader <path>          # 任意のシェーダー
-cargo run --example minifuse_loopback # capture の生存確認
+just run                              # デフォルトシェーダーで起動
+just run <shader-shortcut>            # Justfile に登録された各シェーダー
+cargo run -- --shader <path>          # 任意のシェーダーパス
+cargo run -- --device <name>          # 任意の入力デバイス
+cargo run --example <name>            # 検証用 example
 ```
 
 ## Checks

@@ -8,14 +8,9 @@ default:
 run *args:
     cargo run -- {{args}}
 
-run-ncs:
-    cargo run -- --shader assets/ncs.wgsl
-
-run-proximity:
-    cargo run -- --shader assets/proximity.wgsl
-
-run-proximity-still:
-    cargo run -- --shader assets/proximity_still.wgsl
+# 例: `just shader assets/foo.wgsl` で任意のシェーダーを使って起動
+shader path *args:
+    cargo run -- --shader {{path}} {{args}}
 
 # --- build / examples ------------------------------------------------------
 
