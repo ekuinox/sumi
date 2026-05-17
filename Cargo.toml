@@ -11,14 +11,12 @@ path = "src/main.rs"
 anyhow = { version = "1.0.80", features = ["backtrace"] }
 bytemuck = { version = "1.16", features = ["derive"] }
 clap = { version = "4.5.1", features = ["derive"] }
-duration-str = "0.7.1"
 env_logger = "0.11.2"
 log = "0.4.20"
 notify = "6"
 pollster = "0.3"
 spectrum-analyzer = "1.5.0"
 tray-icon = "0.24"
-wav = "1.0.0"
 wgpu = "22"
 winit = "0.30"
 windows = { version = "0.53.0", features = [
@@ -27,11 +25,7 @@ windows = { version = "0.53.0", features = [
     "Win32_UI_Shell_PropertiesSystem",
     "Win32_UI_WindowsAndMessaging",
     "Win32_Devices_FunctionDiscovery",
-    "Win32_System_Diagnostics_ToolHelp",
-    "Win32_System_Threading",
-    "Win32_Security",
     "Win32_Foundation",
-    "implement",
 ] }
 
 # Examples で参照する旧依存。本体には不要なので dev-dependencies に寄せたいが、
