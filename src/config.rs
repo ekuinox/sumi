@@ -4,12 +4,25 @@
 //! (Windows なら `%APPDATA%\chryth\config.toml`)。
 //! ファイルが無ければ Config::default() の内容で作成し、その後はそれを読む。
 //! `--config <path>` で別ファイルを指定できる。
+//!
+//! 初回生成時は同じディレクトリの `assets/` も scaffold される。リポジトリの
+//! `assets/*.wgsl` を `include_str!` で binary に埋め込み、ユーザー環境に書き出す。
+//! 既にあるファイルは上書きしないので、ユーザー編集は保持される。
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context as _, Result};
 use serde::{Deserialize, Serialize};
+
+/// binary に埋め込んでおく標準シェーダー一式。初回起動時に config と同じ
+/// ディレクトリの `assets/` 配下に書き出す。
+const EMBEDDED_SHADERS: &[(&str, &str)] = &[
+    ("spectrum.wgsl", include_str!("../assets/spectrum.wgsl")),
+    ("ring_field.wgsl", include_str!("../assets/ring_field.wgsl")),
+    ("wave_rings.wgsl", include_str!("../assets/wave_rings.wgsl")),
+    ("band_rings.wgsl", include_str!("../assets/band_rings.wgsl")),
+];
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
@@ -42,8 +55,22 @@ impl Default for Config {
         Self {
             // 環境依存なので空にしておく。タスクトレイの Audio device から選んでもらう。
             device: String::new(),
+            // partial config (toml に shader が無い場合) のフォールバック。
+            // 実用の defaults は `Config::defaults_for(config_path)` を使う。
             shader: PathBuf::from("assets/spectrum.wgsl"),
             floating: FloatingConfig::default(),
+        }
+    }
+}
+
+impl Config {
+    /// 初回生成時の defaults。shader は config と同じディレクトリ下の
+    /// `assets/spectrum.wgsl` を絶対パスで指す。
+    pub fn defaults_for(config_path: &Path) -> Self {
+        let base = config_path.parent().unwrap_or_else(|| Path::new("."));
+        Self {
+            shader: base.join("assets").join("spectrum.wgsl"),
+            ..Self::default()
         }
     }
 }
@@ -90,10 +117,14 @@ pub fn load_or_create(path: &Path) -> Result<Config> {
         log::info!("loaded config: {}", path.display());
         Ok(cfg)
     } else {
-        let cfg = Config::default();
+        let cfg = Config::defaults_for(path);
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)
                 .with_context(|| format!("mkdir {}", parent.display()))?;
+        }
+        // assets/ も同時に scaffold (埋め込んだ shader を書き出す)
+        if let Some(assets_dir) = cfg.shader.parent() {
+            scaffold_assets(assets_dir)?;
         }
         let body = toml::to_string_pretty(&cfg).context("serialize default config")?;
         fs::write(path, body)
@@ -101,4 +132,18 @@ pub fn load_or_create(path: &Path) -> Result<Config> {
         log::info!("created default config: {}", path.display());
         Ok(cfg)
     }
+}
+
+/// `EMBEDDED_SHADERS` を `dir` 配下に書き出す。既存ファイルは上書きしない。
+fn scaffold_assets(dir: &Path) -> Result<()> {
+    fs::create_dir_all(dir).with_context(|| format!("mkdir {}", dir.display()))?;
+    for (name, content) in EMBEDDED_SHADERS {
+        let path = dir.join(name);
+        if path.exists() {
+            continue;
+        }
+        fs::write(&path, content).with_context(|| format!("write {}", path.display()))?;
+        log::info!("scaffolded shader: {}", path.display());
+    }
+    Ok(())
 }
