@@ -404,31 +404,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 
 [[package]]
-name = "chryth"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bytemuck",
- "clap",
- "dirs 5.0.1",
- "log",
- "notify",
- "pollster 0.3.0",
- "rfd",
- "serde",
- "spectrum-analyzer",
- "toml",
- "tracing",
- "tracing-appender",
- "tracing-log",
- "tracing-subscriber",
- "tray-icon",
- "wgpu",
- "windows 0.53.0",
- "winit",
-]
-
-[[package]]
 name = "clap"
 version = "4.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2683,6 +2658,31 @@ name = "strsim"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5ee073c9e4cd00e28217186dbe12796d692868f432bf2e97ee73bed0c56dfa01"
+
+[[package]]
+name = "sumi"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bytemuck",
+ "clap",
+ "dirs 5.0.1",
+ "log",
+ "notify",
+ "pollster 0.3.0",
+ "rfd",
+ "serde",
+ "spectrum-analyzer",
+ "toml",
+ "tracing",
+ "tracing-appender",
+ "tracing-log",
+ "tracing-subscriber",
+ "tray-icon",
+ "wgpu",
+ "windows 0.53.0",
+ "winit",
+]
 
 [[package]]
 name = "symlink"

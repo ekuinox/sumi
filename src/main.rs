@@ -32,8 +32,8 @@ use crate::tray::Tray;
 
 #[derive(Parser, Debug)]
 struct Cli {
-    /// 設定ファイル (toml) のパス。省略時は `dirs::config_dir()/chryth/config.toml`
-    /// (Windows なら `%APPDATA%\chryth\config.toml`)。ファイルが無ければデフォルト
+    /// 設定ファイル (toml) のパス。省略時は `dirs::config_dir()/sumi/config.toml`
+    /// (Windows なら `%APPDATA%\sumi\config.toml`)。ファイルが無ければデフォルト
     /// 内容で自動生成して開く。
     #[clap(long)]
     config: Option<PathBuf>,
@@ -257,7 +257,7 @@ impl App {
             log::warn!("config save failed: {e:#}");
             return;
         }
-        log::info!("restarting chryth to apply new shader...");
+        log::info!("restarting sumi to apply new shader...");
         spawn_restart();
         event_loop.exit();
     }
@@ -269,7 +269,7 @@ impl App {
             log::warn!("config save failed: {e:#}");
             return;
         }
-        log::info!("restarting chryth to apply new monitor...");
+        log::info!("restarting sumi to apply new monitor...");
         spawn_restart();
         event_loop.exit();
     }
@@ -291,7 +291,7 @@ impl App {
             log::warn!("config save failed: {e:#}");
             return;
         }
-        log::info!("restarting chryth to apply floating mode change...");
+        log::info!("restarting sumi to apply floating mode change...");
         spawn_restart();
         event_loop.exit();
     }
@@ -303,7 +303,7 @@ impl App {
             log::warn!("config save failed: {e:#}");
             return;
         }
-        log::info!("restarting chryth to apply new device...");
+        log::info!("restarting sumi to apply new device...");
         spawn_restart();
         event_loop.exit();
     }
@@ -453,7 +453,7 @@ impl ApplicationHandler for App {
                 p.orientation
             );
             WindowAttributes::default()
-                .with_title("chryth")
+                .with_title("sumi")
                 .with_decorations(false)
                 .with_resizable(false)
                 .with_window_level(WindowLevel::AlwaysOnTop)
@@ -461,7 +461,7 @@ impl ApplicationHandler for App {
                 .with_inner_size(PhysicalSize::new(p.width, p.height))
         } else {
             WindowAttributes::default()
-                .with_title("chryth")
+                .with_title("sumi")
                 .with_inner_size(LogicalSize::new(960.0, 360.0))
         };
 
@@ -522,7 +522,7 @@ impl ApplicationHandler for App {
             );
         }
         match Tray::new(
-            "chryth",
+            "sumi",
             &devices,
             &self.cfg.device,
             self.cfg.floating.enabled,

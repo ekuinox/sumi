@@ -1,10 +1,10 @@
 [package]
-name = "chryth"
+name = "sumi"
 version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "chryth"
+name = "sumi"
 path = "src/main.rs"
 
 [dependencies]

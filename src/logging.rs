@@ -1,7 +1,7 @@
 //! ログ初期化。
 //!
 //! - 出力先: 指定ディレクトリ (config.logging.directory)
-//! - 形式: `chryth.log.YYYY-MM-DD` で **daily ローテーション**
+//! - 形式: `sumi.log.YYYY-MM-DD` で **daily ローテーション**
 //! - 保持: `tracing-appender` の `max_log_files` で古いものを自動削除
 //!   (`retention_days` を保持ファイル数として渡す。0 = 削除無効)
 //! - 既存の `log::*` マクロは `tracing-log::LogTracer` 経由で tracing に流れる
@@ -26,7 +26,7 @@ pub fn setup(log_dir: &Path, retention_days: u32) -> Result<WorkerGuard> {
 
     let mut builder = RollingFileAppender::builder()
         .rotation(Rotation::DAILY)
-        .filename_prefix("chryth.log");
+        .filename_prefix("sumi.log");
     if retention_days > 0 {
         builder = builder.max_log_files(retention_days as usize);
     }
@@ -61,6 +61,6 @@ pub fn setup(log_dir: &Path, retention_days: u32) -> Result<WorkerGuard> {
         eprintln!("warn: tracing-log bridge failed: {e}");
     }
 
-    tracing::info!(target: "chryth::logging", "log dir: {}", log_dir.display());
+    tracing::info!(target: "sumi::logging", "log dir: {}", log_dir.display());
     Ok(guard)
 }

@@ -102,7 +102,7 @@ pub fn spawn_capture(
     let (fmt_tx, fmt_rx) = mpsc::channel::<Result<StreamFormat>>();
 
     thread::Builder::new()
-        .name("chryth-audio".into())
+        .name("sumi-audio".into())
         .spawn(move || {
             let res = unsafe { capture_thread_main(needle, samples_for_thread, fmt_tx.clone()) };
             if let Err(e) = res {

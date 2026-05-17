@@ -1,4 +1,4 @@
-# chryth
+# sumi
 
 Windows 専用のリアルタイム音声ビジュアライザ。任意の WASAPI 入力デバイスから音を取り、FFT で周波数スペクトラム + 時間領域波形を取り出して wgpu + WGSL シェーダーで描画する。シェーダーは保存即ホットリロードなので、見た目はリポジトリ内 `assets/` を直接いじって試行錯誤できる。
 
@@ -75,7 +75,7 @@ cargo run -- --config <path> # 同上 (just を使わない場合)
 
 ### config.toml の置き場所
 
-- **release ビルド**: `%APPDATA%\chryth\config.toml`
+- **release ビルド**: `%APPDATA%\sumi\config.toml`
 - **debug ビルド (`cargo run`)**: プロジェクトルートの `./config.toml`
   (隣接する `./assets/*.wgsl` を直接参照するので、ホットリロードで開発フィードバックがそのまま乗る)
 

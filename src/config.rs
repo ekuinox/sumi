@@ -1,7 +1,7 @@
 //! 設定ファイル (toml) の読み込み / デフォルト生成。
 //!
-//! 既定パスは `dirs::config_dir()/chryth/config.toml`
-//! (Windows なら `%APPDATA%\chryth\config.toml`)。
+//! 既定パスは `dirs::config_dir()/sumi/config.toml`
+//! (Windows なら `%APPDATA%\sumi\config.toml`)。
 //! ファイルが無ければ Config::default() の内容で作成し、その後はそれを読む。
 //! `--config <path>` で別ファイルを指定できる。
 //!
@@ -158,15 +158,15 @@ impl Default for FloatingConfig {
 /// - debug ビルド (= `cargo run`): プロジェクトルートの `config.toml`。
 ///   `defaults_for` の挙動で shader 既定値もプロジェクト内 `assets/spectrum.wgsl`
 ///   になるので、リポジトリ内シェーダーを触りながら開発できる。
-/// - release ビルド: `dirs::config_dir()/chryth/config.toml`
-///   (Windows なら `%APPDATA%\chryth\config.toml`)。
+/// - release ビルド: `dirs::config_dir()/sumi/config.toml`
+///   (Windows なら `%APPDATA%\sumi\config.toml`)。
 pub fn default_path() -> PathBuf {
     if cfg!(debug_assertions) {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("config.toml")
     } else {
         dirs::config_dir()
             .unwrap_or_else(|| PathBuf::from("."))
-            .join("chryth")
+            .join("sumi")
             .join("config.toml")
     }
 }
