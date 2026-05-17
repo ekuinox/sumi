@@ -1,9 +1,10 @@
 //! WASAPI shared-mode capture from a named input device, running on a background
 //! thread and exposing the most recent N samples through a shared mutex.
 //!
-//! Default target is the Arturia MiniFuse hardware-loopback channel `Mix 3/4`,
-//! which carries whatever the interface is rendering (including Spotify in
-//! exclusive mode). See `examples/minifuse_loopback.rs` for the standalone
+//! Typical target is a hardware-loopback channel on the audio interface
+//! (e.g. `Mix 3/4`), which carries whatever the interface is rendering even
+//! when an app holds the device in WASAPI exclusive mode. See
+//! `examples/input_capture.rs` for the standalone
 //! validation of this path.
 //!
 //! COM initialization is kept entirely on the capture thread. The main thread

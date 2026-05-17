@@ -1,7 +1,7 @@
-// proximity.wgsl の「回らない版」。
-// 3 本は別々の周波数帯 (bass / mid / treble) を担当し、
-// それぞれ「帯域全体の音量で円全体が膨らむ」+「角度方向の小さな凹凸」で動く。
-// バランス的にほぼ真円が呼吸する + 細かい揺れで Proximity 寄りの絵になる。
+// 3 本リング (帯域別 + スクロールなし) ビジュアライザ。wave_rings.wgsl の固定版。
+// 3 本は別々の周波数帯 (bass / mid / treble) を担当し、それぞれ
+// 「帯域全体の音量で円全体が膨らむ」+「角度方向の小さな凹凸」で動く。
+// バランス的にほぼ真円が呼吸する + 細かい揺れが乗る。
 
 const N_BARS: u32 = 96u;
 const PI: f32 = 3.14159265;
@@ -102,7 +102,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
 
     // bars インデックス: 0=最低音, N-1=最高音
     // bass(下 1/3), mid(中央 1/3), treble(上 1/3)
-    // 3 本とも同じ半径 = 同じ円周上で重なり合う (NCS Proximity 風の「絡まる線」)
+    // 3 本とも同じ半径 = 同じ円周上で重なり合い、音で分離する
     let ring_r = 0.46;
     var rgb = vec3<f32>(0.0);
     rgb = rgb + draw_ring(theta, r, 0u,  32u, ring_r, color_pink,   line_core, line_glow);

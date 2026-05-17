@@ -22,7 +22,9 @@ use crate::render::{Renderer, WAVE_LEN};
 
 #[derive(Parser, Debug)]
 struct Cli {
-    /// 入力デバイスの friendly name 部分一致。MiniFuse 1 の `Mix 3/4` がデフォルト。
+    /// 入力デバイスの friendly name 部分一致。`mmsys.cpl` 録音タブで見えるデバイス名で指定する。
+    /// 排他モード再生中のアプリを拾うには、オーディオ I/F のハードウェアループバック
+    /// チャンネル名 (例: `Mix 3/4` のような) を指定する。
     #[clap(long, default_value = "Mix 3/4")]
     device: String,
     /// 使用する WGSL シェーダーファイル。保存するとホットリロードされる。

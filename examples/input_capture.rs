@@ -1,9 +1,9 @@
-//! ハードウェアレベル loopback (MiniFuse の `Mix 3/4` 等) から普通の WASAPI capture で
-//! Spotify (排他モードでも) の音を取る検証。
+//! 任意の WASAPI 入力デバイスから 1 回録音して wav に保存する最小サンプル。
 //!
 //! Process Loopback Capture は WASAPI 排他モードを取り込めない仕様だが、
-//! オーディオインターフェース側で「出力を入力にミックスして返す」機能を持っていれば、
-//! Windows から見るとそれは単なる入力デバイスなので普通に capture できる。
+//! オーディオインターフェース側に出力を入力にミックスして返すループバック機能が
+//! あれば、それは Windows から見ると単なる入力デバイスなので普通に capture できる。
+//! その経路の生存確認用。
 
 use std::fs::File;
 use std::io::BufWriter;
@@ -111,8 +111,7 @@ unsafe fn capture(device: &IMMDevice, duration: Duration) -> Result<(Vec<u8>, Fo
         .Activate(CLSCTX_ALL, None)
         .context("IMMDevice::Activate(IAudioClient) failed")?;
 
-    // デバイスのネイティブ mix format をそのまま使う。MiniFuse の Mix 3/4 は通常 44100 or 48000Hz / 2ch
-    // (float か PCM かはドライバ依存)。
+    // デバイスのネイティブ mix format をそのまま使う (float か PCM かはドライバ依存)。
     let mix_format_ptr = client.GetMixFormat().context("GetMixFormat failed")?;
     let mix_format = *mix_format_ptr;
     let fmt = FormatInfo {

@@ -1,9 +1,12 @@
-//! Process Loopback Capture で Spotify の音だけを wav に保存する最小検証。
+//! Process Loopback Capture で特定プロセス (ツリー) の音だけを wav に保存する最小検証。
 //!
-//! 既存の record.rs はデフォルトレンダーデバイス全体を loopback するので
-//! 「Spotify のみ」「排他モード時」のどちらも満たせない。これは
+//! device_loopback.rs はデフォルトレンダーデバイス全体を loopback するので
+//! 「特定アプリのみ」を分離できない。こちらは
 //! ActivateAudioInterfaceAsync + AUDIOCLIENT_ACTIVATION_PARAMS で
 //! 特定 PID のレンダーストリームを直接フックする。
+//!
+//! 注意: WASAPI 排他モードで再生されている音は本 API でも取れない (Windows の
+//! 仕様)。排他モードのアプリを拾いたい場合は input_capture.rs を参照。
 
 use std::fs::File;
 use std::io::BufWriter;
@@ -55,9 +58,10 @@ struct Cli {
     /// 録音時間 (例: 10s, 1m)
     #[clap(short, long, default_value = "10s")]
     duration: String,
-    /// 取得対象の実行ファイル名 (拡張子込み・大文字小文字無視)
-    #[clap(short, long, default_value = "Spotify.exe")]
-    process: String,
+    /// 取得対象の実行ファイル名 (拡張子込み・大文字小文字無視)。
+    /// 例: `chrome.exe`, `firefox.exe` 等。
+    #[clap(short, long)]
+    process: Option<String>,
     /// 指定すればプロセス名検索を無視して、この PID を target_process_id に渡す
     #[clap(long)]
     pid: Option<u32>,
@@ -87,10 +91,11 @@ fn main() -> Result<()> {
     }
     log::info!("--- end audio sessions ---");
 
-    let pid = match cli.pid {
-        Some(p) => p,
-        None => find_root_pid_by_name(&cli.process)?
-            .with_context(|| format!("running process not found: {}", cli.process))?,
+    let pid = match (cli.pid, cli.process.as_deref()) {
+        (Some(p), _) => p,
+        (None, Some(name)) => find_root_pid_by_name(name)?
+            .with_context(|| format!("running process not found: {name}"))?,
+        (None, None) => bail!("--pid <PID> か --process <NAME> のどちらかを指定してください"),
     };
     let mode = match cli.mode {
         LoopbackMode::Include => PROCESS_LOOPBACK_MODE_INCLUDE_TARGET_PROCESS_TREE,
@@ -111,7 +116,7 @@ fn main() -> Result<()> {
 }
 
 /// 既定の再生エンドポイントに紐づくオーディオセッションを列挙し、各セッションを
-/// 所有するプロセス PID と表示名をログに出す。Spotify の音をどの PID で
+/// 所有するプロセス PID と表示名をログに出す。対象アプリの音をどの PID で
 /// 拾うべきかが分からないとき、ここで Windows 側の答えを直接見られる。
 /// (排他モードのセッションはここには出ないので注意。)
 unsafe fn enumerate_sessions() -> Result<()> {

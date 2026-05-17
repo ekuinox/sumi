@@ -1,7 +1,7 @@
 # Rust build output
 /target
 
-# Captured audio (sample wav files from examples/spotify_capture.rs etc.)
+# Captured audio (sample wav files produced by examples/*.rs)
 *.wav
 
 # Local environment
