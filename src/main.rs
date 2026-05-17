@@ -161,9 +161,12 @@ impl App {
         // ※ 借用の都合で MenuId だけ取り出して match の外で apply する
         let mut to_apply: Option<floating::Placement> = None;
         let mut device_selected: Option<String> = None;
+        let mut floating_toggle_requested = false;
         while let Ok(ev) = tray_icon::menu::MenuEvent::receiver().try_recv() {
             if ev.id == tray.show_id {
                 self.restore_window();
+            } else if ev.id == tray.floating_toggle_id {
+                floating_toggle_requested = true;
             } else if ev.id == tray.restart_id {
                 log::info!("restart requested via tray");
                 spawn_restart();
@@ -198,6 +201,21 @@ impl App {
         if let Some(name) = device_selected {
             self.select_device(name, event_loop);
         }
+        if floating_toggle_requested {
+            self.toggle_floating(event_loop);
+        }
+    }
+
+    fn toggle_floating(&mut self, event_loop: &ActiveEventLoop) {
+        self.cfg.floating.enabled = !self.cfg.floating.enabled;
+        log::info!("floating toggled to {}", self.cfg.floating.enabled);
+        if let Err(e) = config::save(&self.config_path, &self.cfg) {
+            log::warn!("config save failed: {e:#}");
+            return;
+        }
+        log::info!("restarting chryth to apply floating mode change...");
+        spawn_restart();
+        event_loop.exit();
     }
 
     fn select_device(&mut self, name: String, event_loop: &ActiveEventLoop) {
@@ -396,7 +414,12 @@ impl ApplicationHandler for App {
                 Vec::new()
             }
         };
-        match Tray::new("chryth", &devices, &self.cfg.device) {
+        match Tray::new(
+            "chryth",
+            &devices,
+            &self.cfg.device,
+            self.cfg.floating.enabled,
+        ) {
             Ok(t) => self.tray = Some(t),
             Err(e) => log::warn!("tray icon disabled: {e:#}"),
         }

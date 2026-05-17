@@ -18,6 +18,7 @@ pub const ICON_SIZE: u32 = 32;
 pub struct Tray {
     _icon: TrayIcon,
     pub show_id: MenuId,
+    pub floating_toggle_id: MenuId,
     pub restart_id: MenuId,
     pub quit_id: MenuId,
     /// 浮動モード用の「Move to」 サブメニュー: 4 隅 + 4 辺
@@ -34,9 +35,22 @@ pub struct Tray {
 }
 
 impl Tray {
-    pub fn new(tooltip: &str, device_names: &[String], current_device: &str) -> Result<Self> {
+    pub fn new(
+        tooltip: &str,
+        device_names: &[String],
+        current_device: &str,
+        floating_enabled: bool,
+    ) -> Result<Self> {
         let menu = Menu::new();
         let show = MenuItem::new("Show", true, None);
+
+        // Floating モードのトグル。現在の状態を ● / ○ で表示。
+        let floating_label = if floating_enabled {
+            "\u{25CF} Floating"
+        } else {
+            "\u{25CB} Floating"
+        };
+        let floating_toggle = MenuItem::new(floating_label, true, None);
 
         // Move to (4 隅プリセット + 4 辺フルバー)
         let move_sub = Submenu::new("Move to", true);
@@ -86,6 +100,8 @@ impl Tray {
         let quit = MenuItem::new("Quit", true, None);
 
         menu.append(&show).context("append Show menu item")?;
+        menu.append(&floating_toggle)
+            .context("append Floating toggle")?;
         menu.append(&move_sub).context("append Move to submenu")?;
         menu.append(&dev_sub)
             .context("append Audio device submenu")?;
@@ -95,6 +111,7 @@ impl Tray {
         menu.append(&quit).context("append Quit menu item")?;
 
         let show_id = show.id().clone();
+        let floating_toggle_id = floating_toggle.id().clone();
         let restart_id = restart.id().clone();
         let quit_id = quit.id().clone();
         let move_tl_id = m_tl.id().clone();
@@ -120,6 +137,7 @@ impl Tray {
         Ok(Self {
             _icon: tray,
             show_id,
+            floating_toggle_id,
             restart_id,
             quit_id,
             move_tl_id,
