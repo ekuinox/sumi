@@ -52,10 +52,11 @@ fn main() -> Result<()> {
     let _log_guard = logging::setup(&log_dir, cfg.logging.retention_days)?;
     log::info!("config loaded: {}", config_path.display());
 
-    let shader_path = cfg
-        .shader
+    // shader が相対パスなら config_path 隣として解決する。
+    let shader_input = cfg.resolved_shader(&config_path);
+    let shader_path = shader_input
         .canonicalize()
-        .with_context(|| format!("shader file not found: {}", cfg.shader.display()))?;
+        .with_context(|| format!("shader file not found: {}", shader_input.display()))?;
     let initial_shader = std::fs::read_to_string(&shader_path)
         .with_context(|| format!("read shader {}", shader_path.display()))?;
 
@@ -250,7 +251,8 @@ impl App {
             return;
         };
         log::info!("shader picked: {}", picked.display());
-        self.cfg.shader = picked;
+        // config_path の親より下にあれば相対パスにして保存 (config.toml が整う)。
+        self.cfg.shader = relativize_under(&picked, &self.config_path).unwrap_or(picked);
         if let Err(e) = config::save(&self.config_path, &self.cfg) {
             log::warn!("config save failed: {e:#}");
             return;
@@ -596,6 +598,17 @@ impl ApplicationHandler for App {
 }
 
 const _: () = assert!(N_BARS == 96);
+
+/// `picked` が `config_path.parent()` 配下にあれば、その親からの相対パスを返す。
+/// canonicalize 同士で比較するので、シンボリックリンクや `..` を含むパスも一致する。
+fn relativize_under(
+    picked: &std::path::Path,
+    config_path: &std::path::Path,
+) -> Option<std::path::PathBuf> {
+    let base = config_path.parent()?.canonicalize().ok()?;
+    let canon = picked.canonicalize().ok()?;
+    canon.strip_prefix(&base).ok().map(|p| p.to_path_buf())
+}
 
 /// 設定ファイルを Explorer で選択状態で開く (`explorer.exe /select,<path>`)。
 /// 親ディレクトリが画面に出て、設定ファイルがハイライトされた状態になる。

@@ -94,8 +94,11 @@ impl Default for Config {
 }
 
 impl Config {
-    /// 初回生成時の defaults。shader と logging.directory を config と同じ
-    /// ディレクトリ下に絶対パスで設定する。
+    /// 初回生成時の defaults。shader と logging.directory は config と同じ
+    /// ディレクトリに **絶対パス** で書き出す (生成された config.toml だけで
+    /// 自己完結し、後から config を別の場所に動かしても挙動が変わらない)。
+    /// 相対パスを使いたいユーザーは手で書き換えれば `resolved_*` 側で
+    /// `config_path.parent()` と結合されて解決される。
     pub fn defaults_for(config_path: &Path) -> Self {
         let base = config_path.parent().unwrap_or_else(|| Path::new("."));
         Self {
@@ -108,17 +111,31 @@ impl Config {
         }
     }
 
-    /// 設定ファイル中の logging.directory が空文字 (= partial config 等)
-    /// の場合は config と同じディレクトリ下の `logs/` にフォールバックする。
+    /// 設定ファイル中の logging.directory を解決する:
+    /// 空文字なら config 隣の `logs/`、相対パスなら config の親と結合、絶対パスはそのまま。
     pub fn resolved_log_dir(&self, config_path: &Path) -> PathBuf {
         if self.logging.directory.as_os_str().is_empty() {
-            config_path
-                .parent()
-                .map(|d| d.join("logs"))
-                .unwrap_or_else(|| PathBuf::from("logs"))
+            resolve_against(config_path, Path::new("logs"))
         } else {
-            self.logging.directory.clone()
+            resolve_against(config_path, &self.logging.directory)
         }
+    }
+
+    /// shader フィールドを解決する。空にはしないが、相対パスなら config の親と結合。
+    pub fn resolved_shader(&self, config_path: &Path) -> PathBuf {
+        resolve_against(config_path, &self.shader)
+    }
+}
+
+/// `path` が絶対なら clone、相対なら `config_path.parent()` と結合する。
+/// config_path に親が無いケース (`config.toml` のみ等) はそのまま返す。
+fn resolve_against(config_path: &Path, path: &Path) -> PathBuf {
+    if path.is_absolute() {
+        return path.to_path_buf();
+    }
+    match config_path.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => parent.join(path),
+        _ => path.to_path_buf(),
     }
 }
 

@@ -71,6 +71,8 @@ cargo run -- --config <path> # 同上 (just を使わない場合)
 
 `floating.placement` の有効値: `top-left` / `top-right` / `bottom-left` / `bottom-right` / `top-edge` / `right-edge` / `bottom-edge` / `left-edge`。
 
+`shader` と `logging.directory` は **config.toml の親ディレクトリからの相対パス** でも書ける (絶対パスもそのまま使える)。初回生成は絶対パスで書き出されるが、リポジトリに置いて移動可能にしたい時などは手で相対に書き換えれば OK。タスクトレイの **Choose shader...** で config 配下のシェーダーを選んだ場合は自動で相対パスに変換して保存される。
+
 ### config.toml の置き場所
 
 - **release ビルド**: `%APPDATA%\chryth\config.toml`
