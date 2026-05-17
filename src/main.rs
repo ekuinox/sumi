@@ -182,6 +182,8 @@ impl App {
                 self.minimize_window();
             } else if ev.id == tray.floating_toggle_id {
                 floating_toggle_requested = true;
+            } else if ev.id == tray.open_config_id {
+                open_config_location(&self.config_path);
             } else if ev.id == tray.restart_id {
                 log::info!("restart requested via tray");
                 spawn_restart();
@@ -204,13 +206,9 @@ impl App {
                 choice_selected = Some(P::BottomEdge);
             } else if ev.id == tray.edge_left_id {
                 choice_selected = Some(P::LeftEdge);
-            } else if let Some((_, name)) =
-                tray.devices.iter().find(|(id, _)| *id == ev.id)
-            {
+            } else if let Some((_, name)) = tray.devices.iter().find(|(id, _)| *id == ev.id) {
                 device_selected = Some(name.clone());
-            } else if let Some((_, name)) =
-                tray.monitors.iter().find(|(id, _)| *id == ev.id)
-            {
+            } else if let Some((_, name)) = tray.monitors.iter().find(|(id, _)| *id == ev.id) {
                 monitor_selected = Some(name.clone());
             }
         }
@@ -504,12 +502,7 @@ impl ApplicationHandler for App {
         self.dsp = Some(dsp);
     }
 
-    fn window_event(
-        &mut self,
-        event_loop: &ActiveEventLoop,
-        _id: WindowId,
-        event: WindowEvent,
-    ) {
+    fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::Resized(size) => {
@@ -569,6 +562,16 @@ impl ApplicationHandler for App {
 }
 
 const _: () = assert!(N_BARS == 96);
+
+/// 設定ファイルを Explorer で選択状態で開く (`explorer.exe /select,<path>`)。
+/// 親ディレクトリが画面に出て、設定ファイルがハイライトされた状態になる。
+fn open_config_location(config_path: &std::path::Path) {
+    let arg = format!("/select,{}", config_path.display());
+    match std::process::Command::new("explorer.exe").arg(&arg).spawn() {
+        Ok(_) => log::info!("opened config location: {}", config_path.display()),
+        Err(e) => log::warn!("failed to open config location: {e:#}"),
+    }
+}
 
 /// 自プロセスを同じ CLI 引数で再起動する。新プロセスを spawn したら呼び出し側で
 /// event_loop.exit() してこのプロセスを畳む想定。

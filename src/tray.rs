@@ -21,6 +21,7 @@ pub struct Tray {
     pub show_id: MenuId,
     pub minimize_id: MenuId,
     pub floating_toggle_id: MenuId,
+    pub open_config_id: MenuId,
     pub restart_id: MenuId,
     pub quit_id: MenuId,
     /// 浮動モード用の「Move to」 サブメニュー: 4 隅 + 4 辺
@@ -136,11 +137,13 @@ impl Tray {
             }
         }
 
+        let open_config = MenuItem::new("Open config folder", true, None);
         let restart = MenuItem::new("Restart", true, None);
         let quit = MenuItem::new("Quit", true, None);
 
         menu.append(&show).context("append Show menu item")?;
-        menu.append(&minimize).context("append Minimize menu item")?;
+        menu.append(&minimize)
+            .context("append Minimize menu item")?;
         menu.append(&floating_toggle)
             .context("append Floating toggle")?;
         menu.append(&move_sub).context("append Move to submenu")?;
@@ -149,12 +152,15 @@ impl Tray {
             .context("append Audio device submenu")?;
         menu.append(&PredefinedMenuItem::separator())
             .context("append separator")?;
+        menu.append(&open_config)
+            .context("append Open config folder")?;
         menu.append(&restart).context("append Restart menu item")?;
         menu.append(&quit).context("append Quit menu item")?;
 
         let show_id = show.id().clone();
         let minimize_id = minimize.id().clone();
         let floating_toggle_id = floating_toggle.id().clone();
+        let open_config_id = open_config.id().clone();
         let restart_id = restart.id().clone();
         let quit_id = quit.id().clone();
         let move_tl_id = m_tl.id().clone();
@@ -167,8 +173,8 @@ impl Tray {
         let edge_left_id = e_left.id().clone();
 
         let initial = render_icon_rgba(&[0.0; N_BARS]);
-        let icon = Icon::from_rgba(initial, ICON_SIZE, ICON_SIZE)
-            .context("create initial tray icon")?;
+        let icon =
+            Icon::from_rgba(initial, ICON_SIZE, ICON_SIZE).context("create initial tray icon")?;
 
         let tray = TrayIconBuilder::new()
             .with_menu(Box::new(menu))
@@ -182,6 +188,7 @@ impl Tray {
             show_id,
             minimize_id,
             floating_toggle_id,
+            open_config_id,
             restart_id,
             quit_id,
             move_tl_id,

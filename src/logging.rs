@@ -2,7 +2,8 @@
 //!
 //! - 出力先: 指定ディレクトリ (config.logging.directory)
 //! - 形式: `chryth.log.YYYY-MM-DD` で **daily ローテーション**
-//! - 保持: 起動時に retention_days より古いファイルを mtime ベースで削除
+//! - 保持: `tracing-appender` の `max_log_files` で古いものを自動削除
+//!   (`retention_days` を保持ファイル数として渡す。0 = 削除無効)
 //! - 既存の `log::*` マクロは `tracing-log::LogTracer` 経由で tracing に流れる
 //! - 並行で stderr にも色付きで出す (= `cargo run` 時に普通に見える)
 //!
@@ -12,19 +13,26 @@
 
 use std::fs;
 use std::path::Path;
-use std::time::{Duration, SystemTime};
 
 use anyhow::{Context as _, Result};
 use tracing_appender::non_blocking::WorkerGuard;
+use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
 
 pub fn setup(log_dir: &Path, retention_days: u32) -> Result<WorkerGuard> {
     fs::create_dir_all(log_dir).with_context(|| format!("mkdir {}", log_dir.display()))?;
-    cleanup_old_logs(log_dir, retention_days);
 
-    let file_appender = tracing_appender::rolling::daily(log_dir, "chryth.log");
+    let mut builder = RollingFileAppender::builder()
+        .rotation(Rotation::DAILY)
+        .filename_prefix("chryth.log");
+    if retention_days > 0 {
+        builder = builder.max_log_files(retention_days as usize);
+    }
+    let file_appender = builder
+        .build(log_dir)
+        .with_context(|| format!("create rolling appender at {}", log_dir.display()))?;
     let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
 
     // RUST_LOG が無ければデフォルトで wgpu の info ノイズを落とす
@@ -55,39 +63,4 @@ pub fn setup(log_dir: &Path, retention_days: u32) -> Result<WorkerGuard> {
 
     tracing::info!(target: "chryth::logging", "log dir: {}", log_dir.display());
     Ok(guard)
-}
-
-fn cleanup_old_logs(dir: &Path, retention_days: u32) {
-    if retention_days == 0 {
-        return;
-    }
-    let Some(cutoff) =
-        SystemTime::now().checked_sub(Duration::from_secs(retention_days as u64 * 86_400))
-    else {
-        return;
-    };
-
-    let Ok(entries) = fs::read_dir(dir) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if !path.is_file() {
-            continue;
-        }
-        let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
-            continue;
-        };
-        // 別のアプリのファイルを誤って消さないよう prefix で絞る
-        if !name.starts_with("chryth.log") {
-            continue;
-        }
-        let Ok(meta) = entry.metadata() else { continue };
-        let Ok(mtime) = meta.modified() else { continue };
-        if mtime < cutoff {
-            if let Err(e) = fs::remove_file(&path) {
-                eprintln!("warn: failed to remove old log {}: {e}", path.display());
-            }
-        }
-    }
 }
