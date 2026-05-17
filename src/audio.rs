@@ -25,7 +25,8 @@ use windows::Win32::Media::Audio::{
     MMDeviceEnumerator, AUDCLNT_SHAREMODE_SHARED, DEVICE_STATE_ACTIVE,
 };
 use windows::Win32::System::Com::{
-    CoCreateInstance, CoInitializeEx, CLSCTX_ALL, COINIT_MULTITHREADED, STGM_READ,
+    CoCreateInstance, CoInitializeEx, CLSCTX_ALL, COINIT_APARTMENTTHREADED, COINIT_MULTITHREADED,
+    STGM_READ,
 };
 
 const WAVE_FORMAT_IEEE_FLOAT: u16 = 0x0003;
@@ -89,26 +90,77 @@ pub fn spawn_capture(
     device_name_substring: String,
     buffer_capacity: usize,
 ) -> Result<CaptureHandle> {
+    // 未設定: 起動はさせるが音は来ない
+    if device_name_substring.trim().is_empty() {
+        log::warn!("audio device not configured; running silent (set device in config or via tray)");
+        return Ok(silent_handle(buffer_capacity));
+    }
+
     let samples = Arc::new(SampleBuffer::new(buffer_capacity));
     let samples_for_thread = samples.clone();
+    let needle = device_name_substring.clone();
     let (fmt_tx, fmt_rx) = mpsc::channel::<Result<StreamFormat>>();
 
     thread::Builder::new()
         .name("chryth-audio".into())
         .spawn(move || {
-            let res = unsafe { capture_thread_main(device_name_substring, samples_for_thread, fmt_tx.clone()) };
+            let res = unsafe { capture_thread_main(needle, samples_for_thread, fmt_tx.clone()) };
             if let Err(e) = res {
-                // If we never sent the format back, the main thread is still
-                // blocked in recv — relay the error there.
+                // 起動時 (format 通知前) の失敗だった場合は main 側を待たせ続けない
                 let _ = fmt_tx.send(Err(e));
             }
         })
         .context("spawn capture thread")?;
 
-    let format = fmt_rx
-        .recv()
-        .context("capture thread exited before reporting format")??;
-    Ok(CaptureHandle { samples, format })
+    match fmt_rx.recv() {
+        Ok(Ok(format)) => Ok(CaptureHandle { samples, format }),
+        Ok(Err(e)) => {
+            log::warn!(
+                "audio capture unavailable ({:#}); running silent. device requested: {device_name_substring:?}",
+                e
+            );
+            Ok(silent_handle(buffer_capacity))
+        }
+        Err(_) => {
+            log::warn!("audio thread exited without reporting format; running silent");
+            Ok(silent_handle(buffer_capacity))
+        }
+    }
+}
+
+/// 音は来ないが API として正しい CaptureHandle。SampleBuffer は常に 0 のまま。
+fn silent_handle(buffer_capacity: usize) -> CaptureHandle {
+    CaptureHandle {
+        samples: Arc::new(SampleBuffer::new(buffer_capacity)),
+        format: StreamFormat {
+            sample_rate: 44100,
+            channels: 2,
+            bits_per_sample: 32,
+            is_float: true,
+        },
+    }
+}
+
+/// 既定のレンダーエンドポイントに紐づく入力デバイスの friendly name を全部返す。
+/// タスクトレイの Audio device サブメニュー生成用。
+pub fn list_capture_devices() -> Result<Vec<String>> {
+    unsafe {
+        // 主スレッドから呼ぶ前提。winit の OleInitialize と互換な STA に揃える。
+        // 既に初期化済みなら S_FALSE が返るので .ok() は Ok のままで通る。
+        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED).ok();
+        let enumerator: IMMDeviceEnumerator =
+            CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)?;
+        let collection = enumerator.EnumAudioEndpoints(eCapture, DEVICE_STATE_ACTIVE)?;
+        let count = collection.GetCount()?;
+        let mut out = Vec::with_capacity(count as usize);
+        for i in 0..count {
+            let dev = collection.Item(i)?;
+            let store = dev.OpenPropertyStore(STGM_READ)?;
+            let value = store.GetValue(&PKEY_Device_FriendlyName)?;
+            out.push(value.to_string());
+        }
+        Ok(out)
+    }
 }
 
 unsafe fn capture_thread_main(

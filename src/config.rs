@@ -40,7 +40,8 @@ pub struct FloatingConfig {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            device: "Mix 3/4".into(),
+            // 環境依存なので空にしておく。タスクトレイの Audio device から選んでもらう。
+            device: String::new(),
             shader: PathBuf::from("assets/spectrum.wgsl"),
             floating: FloatingConfig::default(),
         }
@@ -65,6 +66,17 @@ pub fn default_path() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("."))
         .join("chryth")
         .join("config.toml")
+}
+
+/// 現在の Config を toml で `path` に書き出す。親ディレクトリは create_dir_all。
+pub fn save(path: &Path, cfg: &Config) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).with_context(|| format!("mkdir {}", parent.display()))?;
+    }
+    let body = toml::to_string_pretty(cfg).context("serialize config")?;
+    fs::write(path, body).with_context(|| format!("write config {}", path.display()))?;
+    log::info!("saved config: {}", path.display());
+    Ok(())
 }
 
 /// `path` から設定を読む。ファイルが存在しない場合はデフォルト内容で

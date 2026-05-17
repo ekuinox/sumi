@@ -51,7 +51,7 @@ fn main() -> Result<()> {
     let initial_shader = std::fs::read_to_string(&shader_path)
         .with_context(|| format!("read shader {}", shader_path.display()))?;
 
-    let capture = spawn_capture(cfg.device, 1 << 16)?;
+    let capture = spawn_capture(cfg.device.clone(), 1 << 16)?;
     log::info!(
         "audio format: {} Hz, {} ch, {} bit, float={}",
         capture.format.sample_rate,
@@ -91,6 +91,8 @@ fn main() -> Result<()> {
         floating_w: cfg.floating.width,
         floating_h: cfg.floating.height,
         floating_margin: cfg.floating.margin,
+        cfg,
+        config_path,
     };
     event_loop.run_app(&mut app)?;
     Ok(())
@@ -121,6 +123,10 @@ struct App {
     floating_h: u32,
     /// 画面端との余白 (physical px)
     floating_margin: i32,
+    /// 現在の Config (トレイからの変更を反映してファイルに書き戻す)
+    cfg: config::Config,
+    /// Config の書き戻し先パス
+    config_path: PathBuf,
 }
 
 impl App {
@@ -151,9 +157,10 @@ impl App {
                 self.restore_window();
             }
         }
-        // メニュー (Show / Move to / Quit) のクリック
+        // メニュー (Show / Move to / Audio device / Quit) のクリック
         // ※ 借用の都合で MenuId だけ取り出して match の外で apply する
         let mut to_apply: Option<floating::Placement> = None;
+        let mut device_selected: Option<String> = None;
         while let Ok(ev) = tray_icon::menu::MenuEvent::receiver().try_recv() {
             if ev.id == tray.show_id {
                 self.restore_window();
@@ -175,10 +182,26 @@ impl App {
                 to_apply = Some(self.edge_placement(floating::Edge::Bottom));
             } else if ev.id == tray.edge_left_id {
                 to_apply = Some(self.edge_placement(floating::Edge::Left));
+            } else if let Some((_, name)) =
+                tray.devices.iter().find(|(id, _)| *id == ev.id)
+            {
+                device_selected = Some(name.clone());
             }
         }
         if let Some(p) = to_apply {
             self.apply_placement(p);
+        }
+        if let Some(name) = device_selected {
+            self.select_device(name);
+        }
+    }
+
+    fn select_device(&mut self, name: String) {
+        log::info!("device selected: {name}");
+        self.cfg.device = name;
+        match config::save(&self.config_path, &self.cfg) {
+            Ok(()) => log::info!("config updated; restart chryth to apply new device"),
+            Err(e) => log::warn!("config save failed: {e:#}"),
         }
     }
 
@@ -358,7 +381,15 @@ impl ApplicationHandler for App {
         let dsp = Dsp::new(self.capture.format.sample_rate);
 
         // Tray icon は同じスレッド (= winit event loop = main thread) で作る必要がある。
-        match Tray::new("chryth") {
+        // 入力デバイス一覧もここで列挙して Audio device サブメニューに流し込む。
+        let devices = match audio::list_capture_devices() {
+            Ok(v) => v,
+            Err(e) => {
+                log::warn!("device enumeration failed: {e:#}");
+                Vec::new()
+            }
+        };
+        match Tray::new("chryth", &devices, &self.cfg.device) {
             Ok(t) => self.tray = Some(t),
             Err(e) => log::warn!("tray icon disabled: {e:#}"),
         }

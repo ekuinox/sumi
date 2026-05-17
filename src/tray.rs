@@ -28,10 +28,12 @@ pub struct Tray {
     pub edge_right_id: MenuId,
     pub edge_bottom_id: MenuId,
     pub edge_left_id: MenuId,
+    /// 「Audio device」サブメニューの動的アイテム (MenuId, device friendly name)
+    pub devices: Vec<(MenuId, String)>,
 }
 
 impl Tray {
-    pub fn new(tooltip: &str) -> Result<Self> {
+    pub fn new(tooltip: &str, device_names: &[String], current_device: &str) -> Result<Self> {
         let menu = Menu::new();
         let show = MenuItem::new("Show", true, None);
 
@@ -57,10 +59,34 @@ impl Tray {
         move_sub.append(&e_bottom).context("append Edge Bottom")?;
         move_sub.append(&e_left).context("append Edge Left")?;
 
+        // Audio device サブメニュー (動的)。各 device 名で MenuItem を作って ID を保存。
+        // 選択中の device には "●" を頭に付けて区別。
+        let dev_sub = Submenu::new("Audio device", true);
+        let mut devices: Vec<(MenuId, String)> = Vec::new();
+        if device_names.is_empty() {
+            let placeholder = MenuItem::new("(no devices found)", false, None);
+            dev_sub
+                .append(&placeholder)
+                .context("append device placeholder")?;
+        } else {
+            for name in device_names {
+                let label = if name == current_device {
+                    format!("\u{25CF} {name}")
+                } else {
+                    format!("\u{25CB} {name}")
+                };
+                let item = MenuItem::new(label, true, None);
+                dev_sub.append(&item).context("append device item")?;
+                devices.push((item.id().clone(), name.clone()));
+            }
+        }
+
         let quit = MenuItem::new("Quit", true, None);
 
         menu.append(&show).context("append Show menu item")?;
         menu.append(&move_sub).context("append Move to submenu")?;
+        menu.append(&dev_sub)
+            .context("append Audio device submenu")?;
         menu.append(&PredefinedMenuItem::separator())
             .context("append separator")?;
         menu.append(&quit).context("append Quit menu item")?;
@@ -99,6 +125,7 @@ impl Tray {
             edge_right_id,
             edge_bottom_id,
             edge_left_id,
+            devices,
         })
     }
 
