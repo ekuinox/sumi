@@ -2,6 +2,12 @@
 
 Windows 専用のリアルタイム音声ビジュアライザ。任意の WASAPI 入力デバイスから音を取り、FFT で周波数スペクトラム + 時間領域波形を取り出して wgpu + WGSL シェーダーで描画する。シェーダーは保存即ホットリロードなので、見た目はリポジトリ内 `assets/` を直接いじって試行錯誤できる。
 
+## デモ
+
+Spotify の出力 (ハードウェアループバック経由) を浮動小窓で可視化している様子:
+
+<video src="https://github.com/user-attachments/assets/b657c5c1-8387-4b0c-b3b4-76fd282d7844" controls muted loop width="720"></video>
+
 ## できること
 
 - 任意の入力デバイスをタスクトレイから選択して可視化
