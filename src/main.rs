@@ -1,3 +1,7 @@
+// Release ビルドではコンソール窓を出さない (Win32 GUI subsystem)。
+// debug ビルドはコンソール付きのまま (cargo run でログが直接見える)。
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 mod audio;
 mod config;
 mod dsp;

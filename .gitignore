@@ -9,6 +9,10 @@
 # Logs
 *.log
 
+# Dev-time config (debug ビルドが project root に書く)
+/config.toml
+/logs/
+
 # Claude Code per-user files
 .claude/.credentials.json
 .claude/*.local.json

@@ -137,11 +137,21 @@ impl Default for FloatingConfig {
 }
 
 /// 既定の設定ファイルパス。
+///
+/// - debug ビルド (= `cargo run`): プロジェクトルートの `config.toml`。
+///   `defaults_for` の挙動で shader 既定値もプロジェクト内 `assets/spectrum.wgsl`
+///   になるので、リポジトリ内シェーダーを触りながら開発できる。
+/// - release ビルド: `dirs::config_dir()/chryth/config.toml`
+///   (Windows なら `%APPDATA%\chryth\config.toml`)。
 pub fn default_path() -> PathBuf {
-    dirs::config_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join("chryth")
-        .join("config.toml")
+    if cfg!(debug_assertions) {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("config.toml")
+    } else {
+        dirs::config_dir()
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join("chryth")
+            .join("config.toml")
+    }
 }
 
 /// 現在の Config を toml で `path` に書き出す。親ディレクトリは create_dir_all。

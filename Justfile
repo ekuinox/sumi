@@ -8,9 +8,10 @@ default:
 run *args:
     cargo run -- {{args}}
 
-# 例: `just shader assets/foo.wgsl` で任意のシェーダーを使って起動
-shader path *args:
-    cargo run -- --shader {{path}} {{args}}
+# 例: `just config path/to/config.toml` で任意の設定ファイルを使って起動。
+# シェーダーは config.toml の `shader` フィールドかタスクトレイの Choose shader... で切替。
+config path *args:
+    cargo run -- --config {{path}} {{args}}
 
 # --- build / examples ------------------------------------------------------
 
