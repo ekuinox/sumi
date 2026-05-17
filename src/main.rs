@@ -134,7 +134,8 @@ impl App {
         if let Some(w) = &self.window {
             w.set_minimized(false);
             w.set_visible(true);
-            let _ = w.request_inner_size(LogicalSize::new(960.0, 540.0));
+            // サイズは触らない (OS が元のサイズを保持する。明示リサイズすると
+            // floating モードでは 320x64 が 960x540 等に化けるバグの原因になる)
             w.focus_window();
         }
     }
@@ -157,9 +158,10 @@ impl App {
                 self.restore_window();
             }
         }
-        // メニュー (Show / Move to / Audio device / Quit) のクリック
-        // ※ 借用の都合で MenuId だけ取り出して match の外で apply する
-        let mut to_apply: Option<floating::Placement> = None;
+        // メニュークリック処理。借用の都合で MenuId からアクションを抽出し、
+        // tray の借用が切れた後で self を mut で触る。
+        use floating::PlacementChoice as P;
+        let mut choice_selected: Option<P> = None;
         let mut device_selected: Option<String> = None;
         let mut floating_toggle_requested = false;
         while let Ok(ev) = tray_icon::menu::MenuEvent::receiver().try_recv() {
@@ -174,35 +176,45 @@ impl App {
             } else if ev.id == tray.quit_id {
                 event_loop.exit();
             } else if ev.id == tray.move_tl_id {
-                to_apply = Some(self.corner_placement(floating::Corner::TopLeft));
+                choice_selected = Some(P::TopLeft);
             } else if ev.id == tray.move_tr_id {
-                to_apply = Some(self.corner_placement(floating::Corner::TopRight));
+                choice_selected = Some(P::TopRight);
             } else if ev.id == tray.move_bl_id {
-                to_apply = Some(self.corner_placement(floating::Corner::BottomLeft));
+                choice_selected = Some(P::BottomLeft);
             } else if ev.id == tray.move_br_id {
-                to_apply = Some(self.corner_placement(floating::Corner::BottomRight));
+                choice_selected = Some(P::BottomRight);
             } else if ev.id == tray.edge_top_id {
-                to_apply = Some(self.edge_placement(floating::Edge::Top));
+                choice_selected = Some(P::TopEdge);
             } else if ev.id == tray.edge_right_id {
-                to_apply = Some(self.edge_placement(floating::Edge::Right));
+                choice_selected = Some(P::RightEdge);
             } else if ev.id == tray.edge_bottom_id {
-                to_apply = Some(self.edge_placement(floating::Edge::Bottom));
+                choice_selected = Some(P::BottomEdge);
             } else if ev.id == tray.edge_left_id {
-                to_apply = Some(self.edge_placement(floating::Edge::Left));
+                choice_selected = Some(P::LeftEdge);
             } else if let Some((_, name)) =
                 tray.devices.iter().find(|(id, _)| *id == ev.id)
             {
                 device_selected = Some(name.clone());
             }
         }
-        if let Some(p) = to_apply {
-            self.apply_placement(p);
+        if let Some(choice) = choice_selected {
+            self.apply_choice(choice);
         }
         if let Some(name) = device_selected {
             self.select_device(name, event_loop);
         }
         if floating_toggle_requested {
             self.toggle_floating(event_loop);
+        }
+    }
+
+    /// 配置選択をウィンドウへ反映し、選択値を config に保存する。
+    fn apply_choice(&mut self, choice: floating::PlacementChoice) {
+        let p = self.placement_for_choice(choice);
+        self.apply_placement(p);
+        self.cfg.floating.placement = choice;
+        if let Err(e) = config::save(&self.config_path, &self.cfg) {
+            log::warn!("config save failed: {e:#}");
         }
     }
 
@@ -261,6 +273,21 @@ impl App {
         let work = self.work_area();
         // 辺フルバーの「厚み」には floating_height を使う
         floating::placement_at_edge(work, self.floating_h, edge, self.floating_margin)
+    }
+
+    /// 設定保存される PlacementChoice → 実 Placement の変換
+    fn placement_for_choice(&self, choice: floating::PlacementChoice) -> floating::Placement {
+        use floating::{Corner, Edge, PlacementChoice as P};
+        match choice {
+            P::TopLeft => self.corner_placement(Corner::TopLeft),
+            P::TopRight => self.corner_placement(Corner::TopRight),
+            P::BottomLeft => self.corner_placement(Corner::BottomLeft),
+            P::BottomRight => self.corner_placement(Corner::BottomRight),
+            P::TopEdge => self.edge_placement(Edge::Top),
+            P::RightEdge => self.edge_placement(Edge::Right),
+            P::BottomEdge => self.edge_placement(Edge::Bottom),
+            P::LeftEdge => self.edge_placement(Edge::Left),
+        }
     }
 
     fn apply_placement(&mut self, p: floating::Placement) {
@@ -341,37 +368,29 @@ impl ApplicationHandler for App {
             return;
         }
 
-        let attrs = if self.floating {
-            // 浮動窓: 作業領域の右下にプリセット位置で配置
-            let work = floating::find_work_area_rect().unwrap_or(floating::ScreenRect {
-                x: 0,
-                y: 0,
-                width: 1920,
-                height: 1032,
-            });
-            let (x, y) = floating::position_at_corner(
-                work,
-                self.floating_w,
-                self.floating_h,
-                floating::Corner::BottomRight,
-                self.floating_margin,
-            );
+        let initial_placement = if self.floating {
+            Some(self.placement_for_choice(self.cfg.floating.placement))
+        } else {
+            None
+        };
+
+        let attrs = if let Some(p) = initial_placement {
             log::info!(
-                "floating window: {}x{} @ ({x},{y}) (work area {}x{} @ ({},{}))",
-                self.floating_w,
-                self.floating_h,
-                work.width,
-                work.height,
-                work.x,
-                work.y
+                "floating placement {:?}: {}x{} @ ({},{}) orientation={}",
+                self.cfg.floating.placement,
+                p.width,
+                p.height,
+                p.x,
+                p.y,
+                p.orientation
             );
             WindowAttributes::default()
                 .with_title("chryth")
                 .with_decorations(false)
                 .with_resizable(false)
                 .with_window_level(WindowLevel::AlwaysOnTop)
-                .with_position(PhysicalPosition::new(x, y))
-                .with_inner_size(PhysicalSize::new(self.floating_w, self.floating_h))
+                .with_position(PhysicalPosition::new(p.x, p.y))
+                .with_inner_size(PhysicalSize::new(p.width, p.height))
         } else {
             WindowAttributes::default()
                 .with_title("chryth")
@@ -401,8 +420,12 @@ impl ApplicationHandler for App {
             );
         }
 
-        let renderer = pollster::block_on(Renderer::new(window.clone(), &self.initial_shader))
+        let mut renderer = pollster::block_on(Renderer::new(window.clone(), &self.initial_shader))
             .expect("renderer");
+        // 起動時の配置に対応する orientation も適用
+        if let Some(p) = initial_placement {
+            renderer.set_orientation(p.orientation);
+        }
         let dsp = Dsp::new(self.capture.format.sample_rate);
 
         // Tray icon は同じスレッド (= winit event loop = main thread) で作る必要がある。

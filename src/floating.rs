@@ -41,6 +41,27 @@ pub enum Edge {
     Left,
 }
 
+/// config に保存できるユーザーの配置選択 (4 隅 + 4 辺の 8 値)。
+/// シリアライズ形式は kebab-case (例: "bottom-right", "top-edge")。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum PlacementChoice {
+    TopLeft,
+    TopRight,
+    BottomLeft,
+    BottomRight,
+    TopEdge,
+    RightEdge,
+    BottomEdge,
+    LeftEdge,
+}
+
+impl Default for PlacementChoice {
+    fn default() -> Self {
+        Self::BottomRight
+    }
+}
+
 /// 配置と回転をまとめて返す。`orientation` はシェーダーに渡す回転ヒント。
 #[derive(Debug, Clone, Copy)]
 pub struct Placement {

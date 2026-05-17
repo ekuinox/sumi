@@ -48,6 +48,8 @@ pub struct FloatingConfig {
     pub height: u32,
     /// 画面端との余白 (physical px)
     pub margin: i32,
+    /// 起動時の配置位置。トレイメニューから変更したら自動保存される。
+    pub placement: crate::floating::PlacementChoice,
 }
 
 impl Default for Config {
@@ -83,6 +85,7 @@ impl Default for FloatingConfig {
             width: 320,
             height: 64,
             margin: 0,
+            placement: crate::floating::PlacementChoice::default(),
         }
     }
 }
