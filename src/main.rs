@@ -412,8 +412,11 @@ impl ApplicationHandler for App {
                 }
             }
             // スタイル変更で SetWindowPos が走ったあと、サイズが initial size と
-            // ズレるケースがあるので明示的に揃え直す
-            let _ = window.request_inner_size(PhysicalSize::new(self.floating_w, self.floating_h));
+            // ズレるケースがあるので明示的に揃え直す。Edge 配置の場合は 320x64
+            // ではなく placement のサイズを使う必要がある (= 縦長 / 横長で値が違う)。
+            if let Some(p) = initial_placement {
+                let _ = window.request_inner_size(PhysicalSize::new(p.width, p.height));
+            }
             log::info!(
                 "floating actual outer_size after styles: {:?}",
                 window.outer_size()
