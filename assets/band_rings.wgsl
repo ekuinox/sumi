@@ -14,7 +14,7 @@ struct Bars {
 struct Globals {
     resolution: vec2<f32>,
     time: f32,
-    _pad: f32,
+    orientation: u32,
 };
 
 @group(0) @binding(0) var<storage, read> bars: Bars;

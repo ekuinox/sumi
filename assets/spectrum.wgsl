@@ -10,7 +10,7 @@ struct Bars {
 struct Globals {
     resolution: vec2<f32>,
     time: f32,
-    _pad: f32,
+    orientation: u32,
 };
 
 @group(0) @binding(0) var<storage, read> bars: Bars;
@@ -45,7 +45,17 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     _ = wave[0];
     _ = globals.time;
 
-    let uv = in.uv;
+    // orientation で UV を回転。0=normal (バーが下から上に伸びる) / 1=90°CW /
+    // 2=180° / 3=90°CCW。これにより画面の上下左右どの辺に窓を置いても
+    // 同じバー描画ロジックが使える。
+    var uv = in.uv;
+    if (globals.orientation == 1u) {
+        uv = vec2<f32>(uv.y, 1.0 - uv.x);
+    } else if (globals.orientation == 2u) {
+        uv = vec2<f32>(1.0 - uv.x, 1.0 - uv.y);
+    } else if (globals.orientation == 3u) {
+        uv = vec2<f32>(1.0 - uv.y, uv.x);
+    }
     let bar_f = uv.x * f32(N_BARS);
     let idx = u32(clamp(bar_f, 0.0, f32(N_BARS) - 1.0));
     let amp = bars.data[idx];

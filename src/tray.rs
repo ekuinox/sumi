@@ -8,7 +8,7 @@
 //! でグローバルに購読できる。
 
 use anyhow::{Context as _, Result};
-use tray_icon::menu::{Menu, MenuId, MenuItem};
+use tray_icon::menu::{Menu, MenuId, MenuItem, PredefinedMenuItem, Submenu};
 use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
 
 use crate::dsp::N_BARS;
@@ -19,17 +19,62 @@ pub struct Tray {
     _icon: TrayIcon,
     pub show_id: MenuId,
     pub quit_id: MenuId,
+    /// 浮動モード用の「Move to」 サブメニュー: 4 隅 + 4 辺
+    pub move_tl_id: MenuId,
+    pub move_tr_id: MenuId,
+    pub move_bl_id: MenuId,
+    pub move_br_id: MenuId,
+    pub edge_top_id: MenuId,
+    pub edge_right_id: MenuId,
+    pub edge_bottom_id: MenuId,
+    pub edge_left_id: MenuId,
 }
 
 impl Tray {
     pub fn new(tooltip: &str) -> Result<Self> {
         let menu = Menu::new();
         let show = MenuItem::new("Show", true, None);
+
+        // Move to (4 隅プリセット + 4 辺フルバー)
+        let move_sub = Submenu::new("Move to", true);
+        let m_tl = MenuItem::new("\u{2196}\u{FE0F} Top Left", true, None);
+        let m_tr = MenuItem::new("\u{2197}\u{FE0F} Top Right", true, None);
+        let m_bl = MenuItem::new("\u{2199}\u{FE0F} Bottom Left", true, None);
+        let m_br = MenuItem::new("\u{2198}\u{FE0F} Bottom Right", true, None);
+        let e_top = MenuItem::new("\u{2B06}\u{FE0F} Top Edge", true, None);
+        let e_right = MenuItem::new("\u{27A1}\u{FE0F} Right Edge", true, None);
+        let e_bottom = MenuItem::new("\u{2B07}\u{FE0F} Bottom Edge", true, None);
+        let e_left = MenuItem::new("\u{2B05}\u{FE0F} Left Edge", true, None);
+        move_sub.append(&m_tl).context("append Move TL")?;
+        move_sub.append(&m_tr).context("append Move TR")?;
+        move_sub.append(&m_bl).context("append Move BL")?;
+        move_sub.append(&m_br).context("append Move BR")?;
+        move_sub
+            .append(&PredefinedMenuItem::separator())
+            .context("append separator in Move to")?;
+        move_sub.append(&e_top).context("append Edge Top")?;
+        move_sub.append(&e_right).context("append Edge Right")?;
+        move_sub.append(&e_bottom).context("append Edge Bottom")?;
+        move_sub.append(&e_left).context("append Edge Left")?;
+
         let quit = MenuItem::new("Quit", true, None);
+
         menu.append(&show).context("append Show menu item")?;
+        menu.append(&move_sub).context("append Move to submenu")?;
+        menu.append(&PredefinedMenuItem::separator())
+            .context("append separator")?;
         menu.append(&quit).context("append Quit menu item")?;
+
         let show_id = show.id().clone();
         let quit_id = quit.id().clone();
+        let move_tl_id = m_tl.id().clone();
+        let move_tr_id = m_tr.id().clone();
+        let move_bl_id = m_bl.id().clone();
+        let move_br_id = m_br.id().clone();
+        let edge_top_id = e_top.id().clone();
+        let edge_right_id = e_right.id().clone();
+        let edge_bottom_id = e_bottom.id().clone();
+        let edge_left_id = e_left.id().clone();
 
         let initial = render_icon_rgba(&[0.0; N_BARS]);
         let icon = Icon::from_rgba(initial, ICON_SIZE, ICON_SIZE)
@@ -46,6 +91,14 @@ impl Tray {
             _icon: tray,
             show_id,
             quit_id,
+            move_tl_id,
+            move_tr_id,
+            move_bl_id,
+            move_br_id,
+            edge_top_id,
+            edge_right_id,
+            edge_bottom_id,
+            edge_left_id,
         })
     }
 

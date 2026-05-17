@@ -1,5 +1,6 @@
 mod audio;
 mod dsp;
+mod floating;
 mod render;
 mod tray;
 
@@ -12,10 +13,11 @@ use anyhow::{Context as _, Result};
 use clap::Parser;
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use winit::application::ApplicationHandler;
-use winit::dpi::LogicalSize;
+use winit::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
-use winit::window::{Window, WindowAttributes, WindowId};
+use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
+use winit::window::{Window, WindowAttributes, WindowId, WindowLevel};
 
 use crate::audio::{spawn_capture, CaptureHandle};
 use crate::dsp::{Dsp, FFT_SIZE, N_BARS};
@@ -32,6 +34,22 @@ struct Cli {
     /// 使用する WGSL シェーダーファイル。保存するとホットリロードされる。
     #[clap(long, default_value = "assets/spectrum.wgsl")]
     shader: PathBuf,
+    /// 通常窓の代わりに、半透明・クリック透過・常に最前面の浮動小窓で起動する。
+    /// マウス/キーボード操作は下のアプリに抜ける。位置はトレイメニューから 4 隅切替可能。
+    #[clap(long)]
+    floating: bool,
+    /// 浮動窓モードでの不透明度 (0-255)。デフォルト 153 (= 60%)。
+    #[clap(long, default_value_t = 153)]
+    floating_alpha: u8,
+    /// 浮動窓モードのウィンドウ幅 (physical px)
+    #[clap(long, default_value_t = 320)]
+    floating_width: u32,
+    /// 浮動窓モードのウィンドウ高さ (physical px)
+    #[clap(long, default_value_t = 64)]
+    floating_height: u32,
+    /// 浮動窓モードのウィンドウと画面端の余白 (physical px)
+    #[clap(long, default_value_t = 0)]
+    floating_margin: i32,
 }
 
 fn main() -> Result<()> {
@@ -82,6 +100,11 @@ fn main() -> Result<()> {
         tray: None,
         last_tray_update: Instant::now() - Duration::from_secs(1),
         latest_bars: Box::new([0.0; N_BARS]),
+        floating: cli.floating,
+        floating_alpha: cli.floating_alpha,
+        floating_w: cli.floating_width,
+        floating_h: cli.floating_height,
+        floating_margin: cli.floating_margin,
     };
     event_loop.run_app(&mut app)?;
     Ok(())
@@ -103,6 +126,15 @@ struct App {
     /// 直近のバー値。RedrawRequested で計算後にここに保管し、about_to_wait で
     /// throttle してトレイへ反映する。
     latest_bars: Box<[f32; N_BARS]>,
+    /// true なら半透明クリック透過の浮動小窓で起動する
+    floating: bool,
+    /// 浮動窓モードでのウィンドウ全体のアルファ (0-255)
+    floating_alpha: u8,
+    /// 浮動窓モードのウィンドウサイズ (physical px)
+    floating_w: u32,
+    floating_h: u32,
+    /// 画面端との余白 (physical px)
+    floating_margin: i32,
 }
 
 impl App {
@@ -115,7 +147,7 @@ impl App {
         }
     }
 
-    fn drain_tray_events(&self, event_loop: &ActiveEventLoop) {
+    fn drain_tray_events(&mut self, event_loop: &ActiveEventLoop) {
         let Some(tray) = &self.tray else {
             return;
         };
@@ -133,14 +165,87 @@ impl App {
                 self.restore_window();
             }
         }
-        // メニュー (Show / Quit) のクリック
+        // メニュー (Show / Move to / Quit) のクリック
+        // ※ 借用の都合で MenuId だけ取り出して match の外で apply する
+        let mut to_apply: Option<floating::Placement> = None;
         while let Ok(ev) = tray_icon::menu::MenuEvent::receiver().try_recv() {
             if ev.id == tray.show_id {
                 self.restore_window();
             } else if ev.id == tray.quit_id {
                 event_loop.exit();
+            } else if ev.id == tray.move_tl_id {
+                to_apply = Some(self.corner_placement(floating::Corner::TopLeft));
+            } else if ev.id == tray.move_tr_id {
+                to_apply = Some(self.corner_placement(floating::Corner::TopRight));
+            } else if ev.id == tray.move_bl_id {
+                to_apply = Some(self.corner_placement(floating::Corner::BottomLeft));
+            } else if ev.id == tray.move_br_id {
+                to_apply = Some(self.corner_placement(floating::Corner::BottomRight));
+            } else if ev.id == tray.edge_top_id {
+                to_apply = Some(self.edge_placement(floating::Edge::Top));
+            } else if ev.id == tray.edge_right_id {
+                to_apply = Some(self.edge_placement(floating::Edge::Right));
+            } else if ev.id == tray.edge_bottom_id {
+                to_apply = Some(self.edge_placement(floating::Edge::Bottom));
+            } else if ev.id == tray.edge_left_id {
+                to_apply = Some(self.edge_placement(floating::Edge::Left));
             }
         }
+        if let Some(p) = to_apply {
+            self.apply_placement(p);
+        }
+    }
+
+    fn work_area(&self) -> floating::ScreenRect {
+        floating::find_work_area_rect().unwrap_or(floating::ScreenRect {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1032,
+        })
+    }
+
+    fn corner_placement(&self, corner: floating::Corner) -> floating::Placement {
+        let work = self.work_area();
+        let (x, y) = floating::position_at_corner(
+            work,
+            self.floating_w,
+            self.floating_h,
+            corner,
+            self.floating_margin,
+        );
+        floating::Placement {
+            x,
+            y,
+            width: self.floating_w,
+            height: self.floating_h,
+            orientation: 0,
+        }
+    }
+
+    fn edge_placement(&self, edge: floating::Edge) -> floating::Placement {
+        let work = self.work_area();
+        // 辺フルバーの「厚み」には floating_height を使う
+        floating::placement_at_edge(work, self.floating_h, edge, self.floating_margin)
+    }
+
+    fn apply_placement(&mut self, p: floating::Placement) {
+        let Some(win) = self.window.clone() else {
+            return;
+        };
+        let _ = win.request_inner_size(PhysicalSize::new(p.width, p.height));
+        win.set_outer_position(PhysicalPosition::new(p.x, p.y));
+        if let Some(r) = self.renderer.as_mut() {
+            r.set_orientation(p.orientation);
+        }
+        log::info!(
+            "placed window: {}x{} @ ({},{}) orientation={}",
+            p.width,
+            p.height,
+            p.x,
+            p.y,
+            p.orientation
+        );
     }
 
     fn tick_tray_icon(&mut self) {
@@ -201,11 +306,67 @@ impl ApplicationHandler for App {
         if self.window.is_some() {
             return;
         }
-        let attrs = WindowAttributes::default()
-            .with_title("chryth")
-            .with_inner_size(LogicalSize::new(960.0, 360.0));
+
+        let attrs = if self.floating {
+            // 浮動窓: 作業領域の右下にプリセット位置で配置
+            let work = floating::find_work_area_rect().unwrap_or(floating::ScreenRect {
+                x: 0,
+                y: 0,
+                width: 1920,
+                height: 1032,
+            });
+            let (x, y) = floating::position_at_corner(
+                work,
+                self.floating_w,
+                self.floating_h,
+                floating::Corner::BottomRight,
+                self.floating_margin,
+            );
+            log::info!(
+                "floating window: {}x{} @ ({x},{y}) (work area {}x{} @ ({},{}))",
+                self.floating_w,
+                self.floating_h,
+                work.width,
+                work.height,
+                work.x,
+                work.y
+            );
+            WindowAttributes::default()
+                .with_title("chryth")
+                .with_decorations(false)
+                .with_resizable(false)
+                .with_window_level(WindowLevel::AlwaysOnTop)
+                .with_position(PhysicalPosition::new(x, y))
+                .with_inner_size(PhysicalSize::new(self.floating_w, self.floating_h))
+        } else {
+            WindowAttributes::default()
+                .with_title("chryth")
+                .with_inner_size(LogicalSize::new(960.0, 360.0))
+        };
+
         let window = event_loop.create_window(attrs).expect("create window");
         let window = Arc::new(window);
+
+        // 浮動モード時は LWA_ALPHA + click-through + tool-window を後付け
+        if self.floating {
+            if let Ok(handle) = window.window_handle() {
+                if let RawWindowHandle::Win32(h) = handle.as_raw() {
+                    if let Err(e) =
+                        floating::apply_floating_styles(h.hwnd.get(), self.floating_alpha)
+                    {
+                        log::warn!("apply_floating_styles failed: {e:#}");
+                    }
+                }
+            }
+            // スタイル変更で SetWindowPos が走ったあと、サイズが initial size と
+            // ズレるケースがあるので明示的に揃え直す
+            let _ = window.request_inner_size(PhysicalSize::new(self.floating_w, self.floating_h));
+            log::info!(
+                "floating actual outer_size after styles: {:?}",
+                window.outer_size()
+            );
+        }
+
         let renderer = pollster::block_on(Renderer::new(window.clone(), &self.initial_shader))
             .expect("renderer");
         let dsp = Dsp::new(self.capture.format.sample_rate);

@@ -30,7 +30,9 @@ struct BarsBlock {
 struct Globals {
     resolution: [f32; 2],
     time: f32,
-    _pad: f32,
+    /// バー描画系シェーダーが UV を回転させるためのヒント
+    /// 0=normal (bars grow up), 1=90° CW, 2=180°, 3=90° CCW
+    orientation: u32,
 }
 
 pub struct Renderer {
@@ -45,6 +47,7 @@ pub struct Renderer {
     globals_buffer: wgpu::Buffer,
     bind_group: wgpu::BindGroup,
     start_time: Instant,
+    orientation: u32,
     pub size: PhysicalSize<u32>,
 }
 
@@ -115,7 +118,7 @@ impl Renderer {
         let globals_initial = Globals {
             resolution: [size.width as f32, size.height as f32],
             time: 0.0,
-            _pad: 0.0,
+            orientation: 0,
         };
         let globals_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("globals"),
@@ -209,8 +212,15 @@ impl Renderer {
             globals_buffer,
             bind_group,
             start_time: Instant::now(),
+            orientation: 0,
             size,
         })
+    }
+
+    /// バー描画系シェーダー向けの回転ヒントを設定する。
+    /// 値は 0=normal / 1=90°CW / 2=180° / 3=90°CCW。
+    pub fn set_orientation(&mut self, orientation: u32) {
+        self.orientation = orientation;
     }
 
     pub fn resize(&mut self, new_size: PhysicalSize<u32>) {
@@ -231,7 +241,7 @@ impl Renderer {
         let globals = Globals {
             resolution: [self.size.width as f32, self.size.height as f32],
             time: self.start_time.elapsed().as_secs_f32(),
-            _pad: 0.0,
+            orientation: self.orientation,
         };
         self.queue
             .write_buffer(&self.globals_buffer, 0, bytemuck::bytes_of(&globals));
