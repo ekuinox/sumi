@@ -192,17 +192,20 @@ impl App {
             self.apply_placement(p);
         }
         if let Some(name) = device_selected {
-            self.select_device(name);
+            self.select_device(name, event_loop);
         }
     }
 
-    fn select_device(&mut self, name: String) {
+    fn select_device(&mut self, name: String, event_loop: &ActiveEventLoop) {
         log::info!("device selected: {name}");
         self.cfg.device = name;
-        match config::save(&self.config_path, &self.cfg) {
-            Ok(()) => log::info!("config updated; restart chryth to apply new device"),
-            Err(e) => log::warn!("config save failed: {e:#}"),
+        if let Err(e) = config::save(&self.config_path, &self.cfg) {
+            log::warn!("config save failed: {e:#}");
+            return;
         }
+        log::info!("restarting chryth to apply new device...");
+        spawn_restart();
+        event_loop.exit();
     }
 
     fn work_area(&self) -> floating::ScreenRect {
@@ -464,3 +467,20 @@ impl ApplicationHandler for App {
 }
 
 const _: () = assert!(N_BARS == 96);
+
+/// 自プロセスを同じ CLI 引数で再起動する。新プロセスを spawn したら呼び出し側で
+/// event_loop.exit() してこのプロセスを畳む想定。
+fn spawn_restart() {
+    let exe = match std::env::current_exe() {
+        Ok(e) => e,
+        Err(e) => {
+            log::error!("current_exe failed: {e:#}");
+            return;
+        }
+    };
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    match std::process::Command::new(&exe).args(&args).spawn() {
+        Ok(child) => log::info!("spawned restart (pid {})", child.id()),
+        Err(e) => log::error!("restart spawn failed: {e:#}"),
+    }
+}
