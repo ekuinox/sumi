@@ -175,6 +175,7 @@ impl App {
         let mut device_selected: Option<String> = None;
         let mut monitor_selected: Option<String> = None;
         let mut floating_toggle_requested = false;
+        let mut choose_shader_requested = false;
         while let Ok(ev) = tray_icon::menu::MenuEvent::receiver().try_recv() {
             if ev.id == tray.show_id {
                 self.restore_window();
@@ -182,6 +183,8 @@ impl App {
                 self.minimize_window();
             } else if ev.id == tray.floating_toggle_id {
                 floating_toggle_requested = true;
+            } else if ev.id == tray.choose_shader_id {
+                choose_shader_requested = true;
             } else if ev.id == tray.open_config_id {
                 open_config_location(&self.config_path);
             } else if ev.id == tray.restart_id {
@@ -224,6 +227,33 @@ impl App {
         if floating_toggle_requested {
             self.toggle_floating(event_loop);
         }
+        if choose_shader_requested {
+            self.choose_shader(event_loop);
+        }
+    }
+
+    /// ファイルダイアログでシェーダーを選び、config に保存して再起動する。
+    /// 初期ディレクトリは現在のシェーダーの親 (canonicalize 済みのパスから取る)。
+    fn choose_shader(&mut self, event_loop: &ActiveEventLoop) {
+        let mut dialog = rfd::FileDialog::new()
+            .set_title("Choose WGSL shader")
+            .add_filter("WGSL shader", &["wgsl"]);
+        if let Some(parent) = self.shader_path.parent() {
+            dialog = dialog.set_directory(parent);
+        }
+        let Some(picked) = dialog.pick_file() else {
+            log::info!("shader pick cancelled");
+            return;
+        };
+        log::info!("shader picked: {}", picked.display());
+        self.cfg.shader = picked;
+        if let Err(e) = config::save(&self.config_path, &self.cfg) {
+            log::warn!("config save failed: {e:#}");
+            return;
+        }
+        log::info!("restarting chryth to apply new shader...");
+        spawn_restart();
+        event_loop.exit();
     }
 
     fn select_monitor(&mut self, name: String, event_loop: &ActiveEventLoop) {

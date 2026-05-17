@@ -21,6 +21,7 @@ pub struct Tray {
     pub show_id: MenuId,
     pub minimize_id: MenuId,
     pub floating_toggle_id: MenuId,
+    pub choose_shader_id: MenuId,
     pub open_config_id: MenuId,
     pub restart_id: MenuId,
     pub quit_id: MenuId,
@@ -137,6 +138,7 @@ impl Tray {
             }
         }
 
+        let choose_shader = MenuItem::new("Choose shader...", true, None);
         let open_config = MenuItem::new("Open config folder", true, None);
         let restart = MenuItem::new("Restart", true, None);
         let quit = MenuItem::new("Quit", true, None);
@@ -150,6 +152,8 @@ impl Tray {
         menu.append(&mon_sub).context("append Monitor submenu")?;
         menu.append(&dev_sub)
             .context("append Audio device submenu")?;
+        menu.append(&choose_shader)
+            .context("append Choose shader")?;
         menu.append(&PredefinedMenuItem::separator())
             .context("append separator")?;
         menu.append(&open_config)
@@ -160,6 +164,7 @@ impl Tray {
         let show_id = show.id().clone();
         let minimize_id = minimize.id().clone();
         let floating_toggle_id = floating_toggle.id().clone();
+        let choose_shader_id = choose_shader.id().clone();
         let open_config_id = open_config.id().clone();
         let restart_id = restart.id().clone();
         let quit_id = quit.id().clone();
@@ -188,6 +193,7 @@ impl Tray {
             show_id,
             minimize_id,
             floating_toggle_id,
+            choose_shader_id,
             open_config_id,
             restart_id,
             quit_id,

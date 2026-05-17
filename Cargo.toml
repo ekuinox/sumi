@@ -15,6 +15,7 @@ dirs = "5"
 log = "0.4.20"
 notify = "6"
 pollster = "0.3"
+rfd = "0.17"
 serde = { version = "1", features = ["derive"] }
 spectrum-analyzer = "1.5.0"
 toml = "0.8"
