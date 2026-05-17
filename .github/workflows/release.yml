@@ -1,0 +1,42 @@
+name: release
+
+# `v*` 形式のタグ push (例: `v0.1.0`) で Windows release ビルドを行い、
+# 同名の GitHub Release に exe をアップロードする。
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  # softprops/action-gh-release が Release を作成するのに必要
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # rust-toolchain.toml に書いた channel (1.95.0) が自動で使われる。
+      # 初回 cargo 実行時に rustup が install するので明示セットアップは不要。
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build release binary
+        run: cargo build --release --locked
+
+      # アセット名にタグ名を埋め込んでおくと、ダウンロード時にバージョンが分かる。
+      - name: Package binary
+        shell: pwsh
+        run: |
+          $name = "sumi-${{ github.ref_name }}-windows-x64.exe"
+          Copy-Item target/release/sumi.exe $name
+          "ASSET_NAME=$name" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.ASSET_NAME }}
+          generate_release_notes: true
+          draft: false
+          prerelease: false

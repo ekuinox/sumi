@@ -193,17 +193,16 @@ pub fn load_or_create(path: &Path) -> Result<Config> {
         scaffold_assets(&parent.join("assets"))?;
     }
     if path.exists() {
-        let raw = fs::read_to_string(path)
-            .with_context(|| format!("read config {}", path.display()))?;
-        let cfg: Config = toml::from_str(&raw)
-            .with_context(|| format!("parse config {}", path.display()))?;
+        let raw =
+            fs::read_to_string(path).with_context(|| format!("read config {}", path.display()))?;
+        let cfg: Config =
+            toml::from_str(&raw).with_context(|| format!("parse config {}", path.display()))?;
         log::info!("loaded config: {}", path.display());
         Ok(cfg)
     } else {
         let cfg = Config::defaults_for(path);
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)
-                .with_context(|| format!("mkdir {}", parent.display()))?;
+            fs::create_dir_all(parent).with_context(|| format!("mkdir {}", parent.display()))?;
         }
         let body = toml::to_string_pretty(&cfg).context("serialize default config")?;
         fs::write(path, body)

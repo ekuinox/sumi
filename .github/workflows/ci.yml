@@ -1,0 +1,25 @@
+name: ci
+
+# 各 push と PR で fmt-check / clippy / test (= just validate) を回す。
+# Windows 専用クレート (windows / wgpu の DirectX バックエンド) があるので
+# runner は windows-latest 固定。
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # rust-toolchain.toml に書いた channel (1.95.0) が cargo 初回実行で
+      # rustup により自動 install される。
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install just
+        uses: extractions/setup-just@v2
+
+      - name: just validate
+        run: just validate

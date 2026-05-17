@@ -92,7 +92,9 @@ pub fn spawn_capture(
 ) -> Result<CaptureHandle> {
     // 未設定: 起動はさせるが音は来ない
     if device_name_substring.trim().is_empty() {
-        log::warn!("audio device not configured; running silent (set device in config or via tray)");
+        log::warn!(
+            "audio device not configured; running silent (set device in config or via tray)"
+        );
         return Ok(silent_handle(buffer_capacity));
     }
 
@@ -220,7 +222,7 @@ unsafe fn capture_thread_main(
         let len_bytes = (frames as usize) * block_align;
         let is_silent = (flags & AUDCLNT_BUFFERFLAGS_SILENT) != 0 || buffer_ptr.is_null();
         if is_silent {
-            scratch.extend(std::iter::repeat(0.0_f32).take(frames as usize));
+            scratch.extend(std::iter::repeat_n(0.0_f32, frames as usize));
         } else {
             let raw = std::slice::from_raw_parts(buffer_ptr, len_bytes);
             for frame in raw.chunks_exact(block_align) {

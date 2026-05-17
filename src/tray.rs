@@ -228,7 +228,7 @@ pub fn render_icon_rgba(bars: &[f32; N_BARS]) -> Vec<u8> {
     // 背景: 半透明の暗色を塗っておく (無音でもアイコンの輪郭が見える)
     for px in 0..SIZE * SIZE {
         let idx = px * 4;
-        rgba[idx + 0] = 25;
+        rgba[idx] = 25;
         rgba[idx + 1] = 25;
         rgba[idx + 2] = 35;
         rgba[idx + 3] = 180; // 完全不透明ではなく半透明
@@ -251,7 +251,7 @@ pub fn render_icon_rgba(bars: &[f32; N_BARS]) -> Vec<u8> {
             let idx = pixel * 4;
             // VU メーター配色: 下=緑 → 中=黄 → 上=赤
             let (r, g, b) = vu_color(y as f32 / (SIZE as f32 - 1.0));
-            rgba[idx + 0] = r;
+            rgba[idx] = r;
             rgba[idx + 1] = g;
             rgba[idx + 2] = b;
             rgba[idx + 3] = 255;
