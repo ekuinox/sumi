@@ -1,4 +1,5 @@
 mod audio;
+mod config;
 mod dsp;
 mod floating;
 mod render;
@@ -26,30 +27,11 @@ use crate::tray::Tray;
 
 #[derive(Parser, Debug)]
 struct Cli {
-    /// 入力デバイスの friendly name 部分一致。`mmsys.cpl` 録音タブで見えるデバイス名で指定する。
-    /// 排他モード再生中のアプリを拾うには、オーディオ I/F のハードウェアループバック
-    /// チャンネル名 (例: `Mix 3/4` のような) を指定する。
-    #[clap(long, default_value = "Mix 3/4")]
-    device: String,
-    /// 使用する WGSL シェーダーファイル。保存するとホットリロードされる。
-    #[clap(long, default_value = "assets/spectrum.wgsl")]
-    shader: PathBuf,
-    /// 通常窓の代わりに、半透明・クリック透過・常に最前面の浮動小窓で起動する。
-    /// マウス/キーボード操作は下のアプリに抜ける。位置はトレイメニューから 4 隅切替可能。
+    /// 設定ファイル (toml) のパス。省略時は `dirs::config_dir()/chryth/config.toml`
+    /// (Windows なら `%APPDATA%\chryth\config.toml`)。ファイルが無ければデフォルト
+    /// 内容で自動生成して開く。
     #[clap(long)]
-    floating: bool,
-    /// 浮動窓モードでの不透明度 (0-255)。デフォルト 153 (= 60%)。
-    #[clap(long, default_value_t = 153)]
-    floating_alpha: u8,
-    /// 浮動窓モードのウィンドウ幅 (physical px)
-    #[clap(long, default_value_t = 320)]
-    floating_width: u32,
-    /// 浮動窓モードのウィンドウ高さ (physical px)
-    #[clap(long, default_value_t = 64)]
-    floating_height: u32,
-    /// 浮動窓モードのウィンドウと画面端の余白 (physical px)
-    #[clap(long, default_value_t = 0)]
-    floating_margin: i32,
+    config: Option<PathBuf>,
 }
 
 fn main() -> Result<()> {
@@ -59,13 +41,17 @@ fn main() -> Result<()> {
     env_logger::init();
     let cli = Cli::parse();
 
-    let shader_path = cli.shader.canonicalize().with_context(|| {
-        format!("shader file not found: {}", cli.shader.display())
-    })?;
+    let config_path = cli.config.unwrap_or_else(config::default_path);
+    let cfg = config::load_or_create(&config_path)?;
+
+    let shader_path = cfg
+        .shader
+        .canonicalize()
+        .with_context(|| format!("shader file not found: {}", cfg.shader.display()))?;
     let initial_shader = std::fs::read_to_string(&shader_path)
         .with_context(|| format!("read shader {}", shader_path.display()))?;
 
-    let capture = spawn_capture(cli.device, 1 << 16)?;
+    let capture = spawn_capture(cfg.device, 1 << 16)?;
     log::info!(
         "audio format: {} Hz, {} ch, {} bit, float={}",
         capture.format.sample_rate,
@@ -100,11 +86,11 @@ fn main() -> Result<()> {
         tray: None,
         last_tray_update: Instant::now() - Duration::from_secs(1),
         latest_bars: Box::new([0.0; N_BARS]),
-        floating: cli.floating,
-        floating_alpha: cli.floating_alpha,
-        floating_w: cli.floating_width,
-        floating_h: cli.floating_height,
-        floating_margin: cli.floating_margin,
+        floating: cfg.floating.enabled,
+        floating_alpha: cfg.floating.alpha,
+        floating_w: cfg.floating.width,
+        floating_h: cfg.floating.height,
+        floating_margin: cfg.floating.margin,
     };
     event_loop.run_app(&mut app)?;
     Ok(())
