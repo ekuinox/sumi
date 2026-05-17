@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cargo build *)",
+      "Bash(cargo check *)",
+      "Bash(cargo run *)",
+      "Bash(cargo test *)",
+      "Bash(cargo fmt *)",
+      "Bash(cargo clippy *)",
+      "Bash(cargo fetch *)",
+      "Bash(just *)",
+      "Bash(git check-ignore *)",
+      "Bash(git fetch *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git status)",
+      "PowerShell(Get-Process -Name chryth *)",
+      "PowerShell(Stop-Process -Name chryth *)"
+    ]
+  }
+}

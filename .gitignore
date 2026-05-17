@@ -1,2 +1,21 @@
+# Rust build output
 /target
+
+# Captured audio (sample wav files from examples/spotify_capture.rs etc.)
 *.wav
+
+# Local environment
+.env
+.env.local
+*.local
+
+# Logs
+*.log
+
+# Claude Code per-user files
+.claude/.credentials.json
+.claude/*.local.json
+
+# Codex per-user files
+.codex/.credentials.json
+.codex/*.local.json
