@@ -22,6 +22,9 @@ struct Globals {
 @group(0) @binding(0) var<storage, read> bars: Bars;
 @group(0) @binding(1) var<uniform> globals: Globals;
 @group(0) @binding(2) var<storage, read> wave: array<f32>;
+// 未使用。bind group layout の整合のため宣言だけしておく
+@group(0) @binding(3) var<storage, read> peaks: Bars;
+@group(0) @binding(4) var<storage, read> peak_ages: Bars;
 
 struct VsOut {
     @builtin(position) clip_position: vec4<f32>,
@@ -74,6 +77,8 @@ fn sample_wave_smooth(angle: f32) -> f32 {
 @fragment
 fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     _ = bars.data[0];
+    _ = peaks.data[0];
+    _ = peak_ages.data[0];
 
     let res = globals.resolution;
     let min_side = min(res.x, res.y);

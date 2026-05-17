@@ -19,6 +19,10 @@ use serde::{Deserialize, Serialize};
 /// ディレクトリの `assets/` 配下に書き出す。
 const EMBEDDED_SHADERS: &[(&str, &str)] = &[
     ("spectrum.wgsl", include_str!("../assets/spectrum.wgsl")),
+    (
+        "spectrum_peakhold.wgsl",
+        include_str!("../assets/spectrum_peakhold.wgsl"),
+    ),
     ("ring_field.wgsl", include_str!("../assets/ring_field.wgsl")),
     ("wave_rings.wgsl", include_str!("../assets/wave_rings.wgsl")),
     ("band_rings.wgsl", include_str!("../assets/band_rings.wgsl")),
@@ -153,7 +157,14 @@ pub fn save(path: &Path, cfg: &Config) -> Result<()> {
 
 /// `path` から設定を読む。ファイルが存在しない場合はデフォルト内容で
 /// 自動生成 (親ディレクトリも create_dir_all で作る)。
+///
+/// 起動の度に config 隣の `assets/` を scaffold する (既存ファイルはスキップ
+/// されるので、新しい embedded shader だけが追加される)。これによりアップデート
+/// 後の起動でも新シェーダーがユーザー領域に自動で並ぶ。
 pub fn load_or_create(path: &Path) -> Result<Config> {
+    if let Some(parent) = path.parent() {
+        scaffold_assets(&parent.join("assets"))?;
+    }
     if path.exists() {
         let raw = fs::read_to_string(path)
             .with_context(|| format!("read config {}", path.display()))?;
@@ -166,10 +177,6 @@ pub fn load_or_create(path: &Path) -> Result<Config> {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)
                 .with_context(|| format!("mkdir {}", parent.display()))?;
-        }
-        // assets/ も同時に scaffold (埋め込んだ shader を書き出す)
-        if let Some(assets_dir) = cfg.shader.parent() {
-            scaffold_assets(assets_dir)?;
         }
         let body = toml::to_string_pretty(&cfg).context("serialize default config")?;
         fs::write(path, body)

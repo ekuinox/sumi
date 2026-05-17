@@ -45,9 +45,19 @@ pub struct Renderer {
     bars_buffer: wgpu::Buffer,
     wave_buffer: wgpu::Buffer,
     globals_buffer: wgpu::Buffer,
+    peaks_buffer: wgpu::Buffer,
+    peak_ages_buffer: wgpu::Buffer,
     bind_group: wgpu::BindGroup,
     start_time: Instant,
     orientation: u32,
+    /// バーごとの生ピーク値 (binding(3))。`bars[i] >= peaks[i]` のときだけ更新される。
+    /// Rust 側では一切減衰させない。hold / decay の挙動はシェーダー側で
+    /// `peak_ages_sec[i]` を見て自由に組める。
+    peaks: Box<[f32; N_BARS]>,
+    /// 各 bar のピークが最後に更新されてからの経過秒 (binding(4))。
+    /// `bars[i] >= peaks[i]` で 0 にリセット、それ以外は dt を加算。
+    peak_ages_sec: Box<[f32; N_BARS]>,
+    last_peak_update: Instant,
     pub size: PhysicalSize<u32>,
 }
 
@@ -133,6 +143,20 @@ impl Renderer {
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
 
+        let peaks_zero = BarsBlock {
+            data: [0.0; N_BARS],
+        };
+        let peaks_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("peaks"),
+            contents: bytemuck::bytes_of(&peaks_zero),
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        });
+        let peak_ages_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("peak_ages"),
+            contents: bytemuck::bytes_of(&peaks_zero),
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        });
+
         let bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("bg-layout"),
@@ -167,6 +191,26 @@ impl Renderer {
                         },
                         count: None,
                     },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 3,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 4,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
                 ],
             });
 
@@ -186,6 +230,14 @@ impl Renderer {
                     binding: 2,
                     resource: wave_buffer.as_entire_binding(),
                 },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: peaks_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: peak_ages_buffer.as_entire_binding(),
+                },
             ],
         });
 
@@ -200,6 +252,7 @@ impl Renderer {
         let pipeline = build_pipeline(&device, &pipeline_layout, config.format, shader_source)
             .map_err(|e| anyhow!("initial shader failed to compile:\n{e}"))?;
 
+        let now = Instant::now();
         Ok(Self {
             surface,
             device,
@@ -210,9 +263,14 @@ impl Renderer {
             bars_buffer,
             wave_buffer,
             globals_buffer,
+            peaks_buffer,
+            peak_ages_buffer,
             bind_group,
-            start_time: Instant::now(),
+            start_time: now,
             orientation: 0,
+            peaks: Box::new([0.0; N_BARS]),
+            peak_ages_sec: Box::new([0.0; N_BARS]),
+            last_peak_update: now,
             size,
         })
     }
@@ -233,11 +291,39 @@ impl Renderer {
         self.surface.configure(&self.device, &self.config);
     }
 
-    pub fn update(&self, bars: &[f32; N_BARS], wave: &[f32; WAVE_LEN]) {
+    pub fn update(&mut self, bars: &[f32; N_BARS], wave: &[f32; WAVE_LEN]) {
+        // ピーク更新: bars が現ピーク以上なら refresh (値を更新、age を 0 にリセット)、
+        // それ以外なら age に dt を加算するだけ。減衰や hold の解釈はシェーダーに任せる。
+        // dt はウィンドウが背景行きで止まったあとの巨大値を避けて 100ms に頭打ち。
+        let now = Instant::now();
+        let dt = now
+            .duration_since(self.last_peak_update)
+            .as_secs_f32()
+            .min(0.1);
+        self.last_peak_update = now;
+        for (i, &b) in bars.iter().enumerate() {
+            if b >= self.peaks[i] {
+                self.peaks[i] = b;
+                self.peak_ages_sec[i] = 0.0;
+            } else {
+                self.peak_ages_sec[i] += dt;
+            }
+        }
+
         self.queue
             .write_buffer(&self.bars_buffer, 0, bytemuck::cast_slice(bars));
         self.queue
             .write_buffer(&self.wave_buffer, 0, bytemuck::cast_slice(wave));
+        self.queue.write_buffer(
+            &self.peaks_buffer,
+            0,
+            bytemuck::cast_slice(self.peaks.as_ref()),
+        );
+        self.queue.write_buffer(
+            &self.peak_ages_buffer,
+            0,
+            bytemuck::cast_slice(self.peak_ages_sec.as_ref()),
+        );
         let globals = Globals {
             resolution: [self.size.width as f32, self.size.height as f32],
             time: self.start_time.elapsed().as_secs_f32(),
