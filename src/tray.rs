@@ -18,6 +18,7 @@ pub const ICON_SIZE: u32 = 32;
 pub struct Tray {
     _icon: TrayIcon,
     pub show_id: MenuId,
+    pub restart_id: MenuId,
     pub quit_id: MenuId,
     /// 浮動モード用の「Move to」 サブメニュー: 4 隅 + 4 辺
     pub move_tl_id: MenuId,
@@ -81,6 +82,7 @@ impl Tray {
             }
         }
 
+        let restart = MenuItem::new("Restart", true, None);
         let quit = MenuItem::new("Quit", true, None);
 
         menu.append(&show).context("append Show menu item")?;
@@ -89,9 +91,11 @@ impl Tray {
             .context("append Audio device submenu")?;
         menu.append(&PredefinedMenuItem::separator())
             .context("append separator")?;
+        menu.append(&restart).context("append Restart menu item")?;
         menu.append(&quit).context("append Quit menu item")?;
 
         let show_id = show.id().clone();
+        let restart_id = restart.id().clone();
         let quit_id = quit.id().clone();
         let move_tl_id = m_tl.id().clone();
         let move_tr_id = m_tr.id().clone();
@@ -116,6 +120,7 @@ impl Tray {
         Ok(Self {
             _icon: tray,
             show_id,
+            restart_id,
             quit_id,
             move_tl_id,
             move_tr_id,

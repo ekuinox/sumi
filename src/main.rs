@@ -164,6 +164,10 @@ impl App {
         while let Ok(ev) = tray_icon::menu::MenuEvent::receiver().try_recv() {
             if ev.id == tray.show_id {
                 self.restore_window();
+            } else if ev.id == tray.restart_id {
+                log::info!("restart requested via tray");
+                spawn_restart();
+                event_loop.exit();
             } else if ev.id == tray.quit_id {
                 event_loop.exit();
             } else if ev.id == tray.move_tl_id {
