@@ -1,24 +1,37 @@
 [package]
-name = "windows-cap-audio"
+name = "chryth"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "chryth"
+path = "src/main.rs"
+
 [dependencies]
 anyhow = { version = "1.0.80", features = ["backtrace"] }
+bytemuck = { version = "1.16", features = ["derive"] }
 clap = { version = "4.5.1", features = ["derive"] }
-crossterm = "0.27.0"
 duration-str = "0.7.1"
 env_logger = "0.11.2"
 log = "0.4.20"
-minifb = "0.23.0"
+notify = "6"
+pollster = "0.3"
 spectrum-analyzer = "1.5.0"
 wav = "1.0.0"
+wgpu = "22"
+winit = "0.30"
 windows = { version = "0.53.0", features = [
     "Win32_Media_Audio",
     "Win32_System_Com",
     "Win32_UI_Shell_PropertiesSystem",
     "Win32_Devices_FunctionDiscovery",
+    "Win32_System_Diagnostics_ToolHelp",
+    "Win32_System_Threading",
+    "Win32_Security",
+    "Win32_Foundation",
+    "implement",
 ] }
-plotters = "0.3.5"
-cpal = "0.15.2"
-audio-visualizer = "0.4.0"
+
+# Examples で参照する旧依存。本体には不要なので dev-dependencies に寄せたいが、
+# examples 自体は cargo の都合で通常 [dependencies] を見るのでそのまま残す。
+[dev-dependencies]
