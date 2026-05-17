@@ -19,6 +19,7 @@ pub const ICON_SIZE: u32 = 32;
 pub struct Tray {
     _icon: TrayIcon,
     pub show_id: MenuId,
+    pub minimize_id: MenuId,
     pub floating_toggle_id: MenuId,
     pub restart_id: MenuId,
     pub quit_id: MenuId,
@@ -48,6 +49,7 @@ impl Tray {
     ) -> Result<Self> {
         let menu = Menu::new();
         let show = MenuItem::new("Show", true, None);
+        let minimize = MenuItem::new("Minimize", true, None);
 
         // Floating モードのトグル。現在の状態を ● / ○ で表示。
         let floating_label = if floating_enabled {
@@ -138,6 +140,7 @@ impl Tray {
         let quit = MenuItem::new("Quit", true, None);
 
         menu.append(&show).context("append Show menu item")?;
+        menu.append(&minimize).context("append Minimize menu item")?;
         menu.append(&floating_toggle)
             .context("append Floating toggle")?;
         menu.append(&move_sub).context("append Move to submenu")?;
@@ -150,6 +153,7 @@ impl Tray {
         menu.append(&quit).context("append Quit menu item")?;
 
         let show_id = show.id().clone();
+        let minimize_id = minimize.id().clone();
         let floating_toggle_id = floating_toggle.id().clone();
         let restart_id = restart.id().clone();
         let quit_id = quit.id().clone();
@@ -176,6 +180,7 @@ impl Tray {
         Ok(Self {
             _icon: tray,
             show_id,
+            minimize_id,
             floating_toggle_id,
             restart_id,
             quit_id,

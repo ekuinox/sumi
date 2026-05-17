@@ -140,6 +140,12 @@ impl App {
         }
     }
 
+    fn minimize_window(&self) {
+        if let Some(w) = &self.window {
+            w.set_minimized(true);
+        }
+    }
+
     fn drain_tray_events(&mut self, event_loop: &ActiveEventLoop) {
         let Some(tray) = &self.tray else {
             return;
@@ -168,6 +174,8 @@ impl App {
         while let Ok(ev) = tray_icon::menu::MenuEvent::receiver().try_recv() {
             if ev.id == tray.show_id {
                 self.restore_window();
+            } else if ev.id == tray.minimize_id {
+                self.minimize_window();
             } else if ev.id == tray.floating_toggle_id {
                 floating_toggle_requested = true;
             } else if ev.id == tray.restart_id {
