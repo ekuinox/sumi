@@ -12,6 +12,7 @@ use tray_icon::menu::{Menu, MenuId, MenuItem, PredefinedMenuItem, Submenu};
 use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
 
 use crate::dsp::N_BARS;
+use crate::floating::MonitorEntry;
 
 pub const ICON_SIZE: u32 = 32;
 
@@ -32,6 +33,8 @@ pub struct Tray {
     pub edge_left_id: MenuId,
     /// 「Audio device」サブメニューの動的アイテム (MenuId, device friendly name)
     pub devices: Vec<(MenuId, String)>,
+    /// 「Monitor」サブメニューの動的アイテム (MenuId, Win32 device name)
+    pub monitors: Vec<(MenuId, String)>,
 }
 
 impl Tray {
@@ -40,6 +43,8 @@ impl Tray {
         device_names: &[String],
         current_device: &str,
         floating_enabled: bool,
+        monitor_entries: &[MonitorEntry],
+        current_monitor: &str,
     ) -> Result<Self> {
         let menu = Menu::new();
         let show = MenuItem::new("Show", true, None);
@@ -96,6 +101,39 @@ impl Tray {
             }
         }
 
+        // Monitor サブメニュー (動的)。current_monitor が空 = primary 扱い。
+        let mon_sub = Submenu::new("Monitor", true);
+        let mut monitors: Vec<(MenuId, String)> = Vec::new();
+        if monitor_entries.is_empty() {
+            let placeholder = MenuItem::new("(no monitors found)", false, None);
+            mon_sub
+                .append(&placeholder)
+                .context("append monitor placeholder")?;
+        } else {
+            // 「Primary (auto)」項目: monitor 名をクリアしてプライマリに追従する
+            let auto_label = if current_monitor.is_empty() {
+                "\u{25CF} Primary (auto)"
+            } else {
+                "\u{25CB} Primary (auto)"
+            };
+            let auto_item = MenuItem::new(auto_label, true, None);
+            mon_sub.append(&auto_item).context("append auto monitor")?;
+            monitors.push((auto_item.id().clone(), String::new()));
+
+            for m in monitor_entries {
+                let is_current = m.device_name == current_monitor;
+                let mark = if is_current { "\u{25CF}" } else { "\u{25CB}" };
+                let primary_tag = if m.is_primary { " [primary]" } else { "" };
+                let label = format!(
+                    "{mark} {} ({}x{}){primary_tag}",
+                    m.device_name, m.work.width, m.work.height
+                );
+                let item = MenuItem::new(label, true, None);
+                mon_sub.append(&item).context("append monitor item")?;
+                monitors.push((item.id().clone(), m.device_name.clone()));
+            }
+        }
+
         let restart = MenuItem::new("Restart", true, None);
         let quit = MenuItem::new("Quit", true, None);
 
@@ -103,6 +141,7 @@ impl Tray {
         menu.append(&floating_toggle)
             .context("append Floating toggle")?;
         menu.append(&move_sub).context("append Move to submenu")?;
+        menu.append(&mon_sub).context("append Monitor submenu")?;
         menu.append(&dev_sub)
             .context("append Audio device submenu")?;
         menu.append(&PredefinedMenuItem::separator())
@@ -149,6 +188,7 @@ impl Tray {
             edge_bottom_id,
             edge_left_id,
             devices,
+            monitors,
         })
     }
 

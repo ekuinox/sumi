@@ -163,6 +163,7 @@ impl App {
         use floating::PlacementChoice as P;
         let mut choice_selected: Option<P> = None;
         let mut device_selected: Option<String> = None;
+        let mut monitor_selected: Option<String> = None;
         let mut floating_toggle_requested = false;
         while let Ok(ev) = tray_icon::menu::MenuEvent::receiver().try_recv() {
             if ev.id == tray.show_id {
@@ -195,6 +196,10 @@ impl App {
                 tray.devices.iter().find(|(id, _)| *id == ev.id)
             {
                 device_selected = Some(name.clone());
+            } else if let Some((_, name)) =
+                tray.monitors.iter().find(|(id, _)| *id == ev.id)
+            {
+                monitor_selected = Some(name.clone());
             }
         }
         if let Some(choice) = choice_selected {
@@ -203,9 +208,24 @@ impl App {
         if let Some(name) = device_selected {
             self.select_device(name, event_loop);
         }
+        if let Some(name) = monitor_selected {
+            self.select_monitor(name, event_loop);
+        }
         if floating_toggle_requested {
             self.toggle_floating(event_loop);
         }
+    }
+
+    fn select_monitor(&mut self, name: String, event_loop: &ActiveEventLoop) {
+        log::info!("monitor selected: {:?}", name);
+        self.cfg.floating.monitor = name;
+        if let Err(e) = config::save(&self.config_path, &self.cfg) {
+            log::warn!("config save failed: {e:#}");
+            return;
+        }
+        log::info!("restarting chryth to apply new monitor...");
+        spawn_restart();
+        event_loop.exit();
     }
 
     /// 配置選択をウィンドウへ反映し、選択値を config に保存する。
@@ -243,12 +263,14 @@ impl App {
     }
 
     fn work_area(&self) -> floating::ScreenRect {
-        floating::find_work_area_rect().unwrap_or(floating::ScreenRect {
-            x: 0,
-            y: 0,
-            width: 1920,
-            height: 1032,
-        })
+        floating::find_work_area_for_monitor(&self.cfg.floating.monitor).unwrap_or(
+            floating::ScreenRect {
+                x: 0,
+                y: 0,
+                width: 1920,
+                height: 1032,
+            },
+        )
     }
 
     fn corner_placement(&self, corner: floating::Corner) -> floating::Placement {
@@ -440,11 +462,26 @@ impl ApplicationHandler for App {
                 Vec::new()
             }
         };
+        let monitors = floating::list_monitors();
+        log::info!("found {} monitor(s)", monitors.len());
+        for m in &monitors {
+            log::info!(
+                "  monitor {}: work {}x{} @ ({},{}) primary={}",
+                m.device_name,
+                m.work.width,
+                m.work.height,
+                m.work.x,
+                m.work.y,
+                m.is_primary
+            );
+        }
         match Tray::new(
             "chryth",
             &devices,
             &self.cfg.device,
             self.cfg.floating.enabled,
+            &monitors,
+            &self.cfg.floating.monitor,
         ) {
             Ok(t) => self.tray = Some(t),
             Err(e) => log::warn!("tray icon disabled: {e:#}"),

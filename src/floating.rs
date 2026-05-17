@@ -9,7 +9,10 @@
 //! wgpu の DXGI swap chain とも問題なく共存する。
 
 use anyhow::{anyhow, Result};
-use windows::Win32::Foundation::{COLORREF, HWND, RECT};
+use windows::Win32::Foundation::{BOOL, COLORREF, HWND, LPARAM, RECT};
+use windows::Win32::Graphics::Gdi::{
+    EnumDisplayMonitors, GetMonitorInfoW, HDC, HMONITOR, MONITORINFO, MONITORINFOEXW,
+};
 use windows::Win32::UI::WindowsAndMessaging::{
     GetWindowLongPtrW, SetLayeredWindowAttributes, SetWindowLongPtrW, SetWindowPos,
     SystemParametersInfoW, GWL_EXSTYLE, LWA_ALPHA, SPI_GETWORKAREA, SWP_FRAMECHANGED,
@@ -137,6 +140,78 @@ pub fn position_at_corner(
         Corner::BottomLeft => (work.x + margin, bottom - win_h as i32 - margin),
         Corner::BottomRight => (right - win_w as i32 - margin, bottom - win_h as i32 - margin),
     }
+}
+
+/// 1 つのモニタの情報。
+#[derive(Debug, Clone)]
+pub struct MonitorEntry {
+    /// Win32 のデバイス名 (例: `\\.\DISPLAY1`)。設定ファイルの保存値に使う。
+    pub device_name: String,
+    /// 作業領域 (タスクバー等を除いた領域、screen 座標)。
+    pub work: ScreenRect,
+    /// プライマリかどうか。表示用。
+    pub is_primary: bool,
+}
+
+/// 既存のすべてのモニタを列挙する (Win32 EnumDisplayMonitors)。
+pub fn list_monitors() -> Vec<MonitorEntry> {
+    let mut list: Vec<MonitorEntry> = Vec::new();
+    unsafe {
+        let _ = EnumDisplayMonitors(
+            HDC(0),
+            None,
+            Some(monitor_enum_proc),
+            LPARAM(&mut list as *mut Vec<MonitorEntry> as isize),
+        );
+    }
+    list
+}
+
+unsafe extern "system" fn monitor_enum_proc(
+    hmon: HMONITOR,
+    _hdc: HDC,
+    _rect: *mut RECT,
+    lparam: LPARAM,
+) -> BOOL {
+    let list = &mut *(lparam.0 as *mut Vec<MonitorEntry>);
+    let mut info: MONITORINFOEXW = std::mem::zeroed();
+    info.monitorInfo.cbSize = std::mem::size_of::<MONITORINFOEXW>() as u32;
+    let ptr = &mut info as *mut MONITORINFOEXW as *mut MONITORINFO;
+    if GetMonitorInfoW(hmon, ptr).as_bool() {
+        let len = info
+            .szDevice
+            .iter()
+            .position(|&c| c == 0)
+            .unwrap_or(info.szDevice.len());
+        let device_name = String::from_utf16_lossy(&info.szDevice[..len]);
+        let work = ScreenRect {
+            x: info.monitorInfo.rcWork.left,
+            y: info.monitorInfo.rcWork.top,
+            width: (info.monitorInfo.rcWork.right - info.monitorInfo.rcWork.left).max(0) as u32,
+            height: (info.monitorInfo.rcWork.bottom - info.monitorInfo.rcWork.top).max(0) as u32,
+        };
+        // MONITORINFOF_PRIMARY = 0x1
+        let is_primary = (info.monitorInfo.dwFlags & 0x1) != 0;
+        list.push(MonitorEntry {
+            device_name,
+            work,
+            is_primary,
+        });
+    }
+    BOOL(1)
+}
+
+/// 指定モニタ (device_name 一致) の作業領域を返す。空文字や見つからない場合は
+/// 既定モニタの作業領域にフォールバックする。
+pub fn find_work_area_for_monitor(device_name: &str) -> Option<ScreenRect> {
+    if device_name.is_empty() {
+        return find_work_area_rect();
+    }
+    list_monitors()
+        .into_iter()
+        .find(|m| m.device_name == device_name)
+        .map(|m| m.work)
+        .or_else(find_work_area_rect)
 }
 
 /// 既定モニタの作業領域 (タスクバーを除いた領域) を取得する。

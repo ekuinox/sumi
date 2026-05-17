@@ -50,6 +50,9 @@ pub struct FloatingConfig {
     pub margin: i32,
     /// 起動時の配置位置。トレイメニューから変更したら自動保存される。
     pub placement: crate::floating::PlacementChoice,
+    /// 表示するモニタの Win32 デバイス名 (例: `\\.\DISPLAY2`)。
+    /// 空文字 = プライマリモニタ。トレイメニューから変更可。
+    pub monitor: String,
 }
 
 impl Default for Config {
@@ -86,6 +89,7 @@ impl Default for FloatingConfig {
             height: 64,
             margin: 0,
             placement: crate::floating::PlacementChoice::default(),
+            monitor: String::new(),
         }
     }
 }
