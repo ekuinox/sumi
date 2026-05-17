@@ -12,13 +12,16 @@ anyhow = { version = "1.0.80", features = ["backtrace"] }
 bytemuck = { version = "1.16", features = ["derive"] }
 clap = { version = "4.5.1", features = ["derive"] }
 dirs = "5"
-env_logger = "0.11.2"
 log = "0.4.20"
 notify = "6"
 pollster = "0.3"
 serde = { version = "1", features = ["derive"] }
 spectrum-analyzer = "1.5.0"
 toml = "0.8"
+tracing = "0.1"
+tracing-appender = "0.2"
+tracing-log = "0.2"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 tray-icon = "0.24"
 wgpu = "22"
 winit = "0.30"

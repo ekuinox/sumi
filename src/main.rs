@@ -2,6 +2,7 @@ mod audio;
 mod config;
 mod dsp;
 mod floating;
+mod logging;
 mod render;
 mod tray;
 
@@ -35,14 +36,17 @@ struct Cli {
 }
 
 fn main() -> Result<()> {
-    if std::env::var_os("RUST_LOG").is_none() {
-        std::env::set_var("RUST_LOG", "info,wgpu_core=warn,wgpu_hal=warn,naga=warn");
-    }
-    env_logger::init();
     let cli = Cli::parse();
 
     let config_path = cli.config.unwrap_or_else(config::default_path);
+    // 設定読み込みは tracing 初期化前 (この時点での log::* は捨てられる)。
     let cfg = config::load_or_create(&config_path)?;
+
+    // tracing をセットアップしてからは log::* も file/stderr に流れる。
+    // _log_guard は non-blocking writer のワーカーを生かしておくためのもの。
+    let log_dir = cfg.resolved_log_dir(&config_path);
+    let _log_guard = logging::setup(&log_dir, cfg.logging.retention_days)?;
+    log::info!("config loaded: {}", config_path.display());
 
     let shader_path = cfg
         .shader

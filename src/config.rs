@@ -33,6 +33,26 @@ pub struct Config {
     pub shader: PathBuf,
     /// 浮動小窓モードの設定
     pub floating: FloatingConfig,
+    /// ログ出力の設定
+    pub logging: LoggingConfig,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default)]
+pub struct LoggingConfig {
+    /// ログ出力先ディレクトリ。空文字なら config と同じディレクトリ下の `logs/`。
+    pub directory: PathBuf,
+    /// 何日分のログを残すか (0 で削除を無効化、起動時に古いファイルを mtime 基準で削除)
+    pub retention_days: u32,
+}
+
+impl Default for LoggingConfig {
+    fn default() -> Self {
+        Self {
+            directory: PathBuf::new(),
+            retention_days: 7,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -64,18 +84,36 @@ impl Default for Config {
             // 実用の defaults は `Config::defaults_for(config_path)` を使う。
             shader: PathBuf::from("assets/spectrum.wgsl"),
             floating: FloatingConfig::default(),
+            logging: LoggingConfig::default(),
         }
     }
 }
 
 impl Config {
-    /// 初回生成時の defaults。shader は config と同じディレクトリ下の
-    /// `assets/spectrum.wgsl` を絶対パスで指す。
+    /// 初回生成時の defaults。shader と logging.directory を config と同じ
+    /// ディレクトリ下に絶対パスで設定する。
     pub fn defaults_for(config_path: &Path) -> Self {
         let base = config_path.parent().unwrap_or_else(|| Path::new("."));
         Self {
             shader: base.join("assets").join("spectrum.wgsl"),
+            logging: LoggingConfig {
+                directory: base.join("logs"),
+                retention_days: 7,
+            },
             ..Self::default()
+        }
+    }
+
+    /// 設定ファイル中の logging.directory が空文字 (= partial config 等)
+    /// の場合は config と同じディレクトリ下の `logs/` にフォールバックする。
+    pub fn resolved_log_dir(&self, config_path: &Path) -> PathBuf {
+        if self.logging.directory.as_os_str().is_empty() {
+            config_path
+                .parent()
+                .map(|d| d.join("logs"))
+                .unwrap_or_else(|| PathBuf::from("logs"))
+        } else {
+            self.logging.directory.clone()
         }
     }
 }
