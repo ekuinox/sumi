@@ -64,8 +64,14 @@ pub fn render_icon_rgba(bars: &[f32; N_BARS]) -> Vec<u8> {
     const SIZE: usize = ICON_SIZE as usize;
     let mut rgba = vec![0u8; SIZE * SIZE * 4];
 
-    // 背景は透明
-    // (RGBA はすでに 0 埋めなのでアルファ 0 = 透明。何もしなくて OK)
+    // 背景: 半透明の暗色を塗っておく (無音でもアイコンの輪郭が見える)
+    for px in 0..SIZE * SIZE {
+        let idx = px * 4;
+        rgba[idx + 0] = 25;
+        rgba[idx + 1] = 25;
+        rgba[idx + 2] = 35;
+        rgba[idx + 3] = 180; // 完全不透明ではなく半透明
+    }
 
     // 32 列、それぞれが (N_BARS / 32) 個の bar の max を担当
     const STRIDE: usize = N_BARS / SIZE; // 96 / 32 = 3
@@ -75,18 +81,19 @@ pub fn render_icon_rgba(bars: &[f32; N_BARS]) -> Vec<u8> {
         for i in 0..STRIDE {
             amp = amp.max(bars[base + i]);
         }
-        let bar_height = (amp.clamp(0.0, 1.0) * SIZE as f32).round() as usize;
+        // 最低でも 1px は塗る (= 無音でも底ラインが見える)
+        let bar_height = ((amp.clamp(0.0, 1.0) * SIZE as f32).round() as usize).max(1);
         for y in 0..bar_height.min(SIZE) {
             // y=0 が画面下にしたいので逆向き
             let row = SIZE - 1 - y;
             let pixel = row * SIZE + x;
             let idx = pixel * 4;
-            // 黄色 → 白に近づくグラデ (上ほど明るい)
-            let t = (y as f32 / SIZE as f32).clamp(0.0, 1.0);
-            rgba[idx + 0] = lerp_u8(245, 255, t); // R
-            rgba[idx + 1] = lerp_u8(220, 250, t); // G
-            rgba[idx + 2] = lerp_u8(40, 200, t);  // B
-            rgba[idx + 3] = 255;                   // A
+            // VU メーター配色: 下=緑 → 中=黄 → 上=赤
+            let (r, g, b) = vu_color(y as f32 / (SIZE as f32 - 1.0));
+            rgba[idx + 0] = r;
+            rgba[idx + 1] = g;
+            rgba[idx + 2] = b;
+            rgba[idx + 3] = 255;
         }
     }
 
@@ -96,4 +103,18 @@ pub fn render_icon_rgba(bars: &[f32; N_BARS]) -> Vec<u8> {
 fn lerp_u8(a: u8, b: u8, t: f32) -> u8 {
     let v = a as f32 + (b as f32 - a as f32) * t;
     v.clamp(0.0, 255.0) as u8
+}
+
+/// VU メーター式の色マップ。t=0 で緑、t=0.6 で黄、t=1.0 で赤。
+fn vu_color(t: f32) -> (u8, u8, u8) {
+    let t = t.clamp(0.0, 1.0);
+    if t < 0.6 {
+        // 緑 (60, 220, 60) → 黄 (240, 220, 50)
+        let s = t / 0.6;
+        (lerp_u8(60, 240, s), 220, lerp_u8(60, 50, s))
+    } else {
+        // 黄 (240, 220, 50) → 赤 (240, 50, 50)
+        let s = (t - 0.6) / 0.4;
+        (240, lerp_u8(220, 50, s), 50)
+    }
 }
