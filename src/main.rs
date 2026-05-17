@@ -1,6 +1,7 @@
 mod audio;
 mod dsp;
 mod render;
+mod tray;
 
 use std::path::PathBuf;
 use std::sync::mpsc;
@@ -19,6 +20,7 @@ use winit::window::{Window, WindowAttributes, WindowId};
 use crate::audio::{spawn_capture, CaptureHandle};
 use crate::dsp::{Dsp, FFT_SIZE, N_BARS};
 use crate::render::{Renderer, WAVE_LEN};
+use crate::tray::Tray;
 
 #[derive(Parser, Debug)]
 struct Cli {
@@ -77,6 +79,9 @@ fn main() -> Result<()> {
         watch_rx,
         _watcher: watcher,
         last_reload: Instant::now() - Duration::from_secs(1),
+        tray: None,
+        last_tray_update: Instant::now() - Duration::from_secs(1),
+        latest_bars: Box::new([0.0; N_BARS]),
     };
     event_loop.run_app(&mut app)?;
     Ok(())
@@ -93,9 +98,63 @@ struct App {
     watch_rx: mpsc::Receiver<notify::Result<notify::Event>>,
     _watcher: RecommendedWatcher,
     last_reload: Instant,
+    tray: Option<Tray>,
+    last_tray_update: Instant,
+    /// 直近のバー値。RedrawRequested で計算後にここに保管し、about_to_wait で
+    /// throttle してトレイへ反映する。
+    latest_bars: Box<[f32; N_BARS]>,
 }
 
 impl App {
+    fn restore_window(&self) {
+        if let Some(w) = &self.window {
+            w.set_minimized(false);
+            w.set_visible(true);
+            let _ = w.request_inner_size(LogicalSize::new(960.0, 540.0));
+            w.focus_window();
+        }
+    }
+
+    fn drain_tray_events(&self, event_loop: &ActiveEventLoop) {
+        let Some(tray) = &self.tray else {
+            return;
+        };
+        // tray icon 本体のクリック等
+        while let Ok(ev) = tray_icon::TrayIconEvent::receiver().try_recv() {
+            if matches!(
+                ev,
+                tray_icon::TrayIconEvent::DoubleClick { .. }
+                    | tray_icon::TrayIconEvent::Click {
+                        button: tray_icon::MouseButton::Left,
+                        button_state: tray_icon::MouseButtonState::Up,
+                        ..
+                    }
+            ) {
+                self.restore_window();
+            }
+        }
+        // メニュー (Show / Quit) のクリック
+        while let Ok(ev) = tray_icon::menu::MenuEvent::receiver().try_recv() {
+            if ev.id == tray.show_id {
+                self.restore_window();
+            } else if ev.id == tray.quit_id {
+                event_loop.exit();
+            }
+        }
+    }
+
+    fn tick_tray_icon(&mut self) {
+        let Some(tray) = &self.tray else {
+            return;
+        };
+        // ~15 fps に絞る
+        if self.last_tray_update.elapsed() < Duration::from_millis(66) {
+            return;
+        }
+        tray.update_from_bars(&self.latest_bars);
+        self.last_tray_update = Instant::now();
+    }
+
     fn drain_shader_events_and_reload(&mut self) {
         let mut should_reload = false;
         while let Ok(res) = self.watch_rx.try_recv() {
@@ -150,6 +209,13 @@ impl ApplicationHandler for App {
         let renderer = pollster::block_on(Renderer::new(window.clone(), &self.initial_shader))
             .expect("renderer");
         let dsp = Dsp::new(self.capture.format.sample_rate);
+
+        // Tray icon は同じスレッド (= winit event loop = main thread) で作る必要がある。
+        match Tray::new("chryth") {
+            Ok(t) => self.tray = Some(t),
+            Err(e) => log::warn!("tray icon disabled: {e:#}"),
+        }
+
         self.window = Some(window);
         self.renderer = Some(renderer);
         self.dsp = Some(dsp);
@@ -193,6 +259,10 @@ impl ApplicationHandler for App {
                 }
 
                 renderer.update(bars, &wave);
+
+                // about_to_wait 側でトレイ更新したいので最新値をコピーしておく
+                self.latest_bars.copy_from_slice(bars);
+
                 match renderer.render() {
                     Ok(_) => {}
                     Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
@@ -205,8 +275,10 @@ impl ApplicationHandler for App {
         }
     }
 
-    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         self.drain_shader_events_and_reload();
+        self.drain_tray_events(event_loop);
+        self.tick_tray_icon();
         if let Some(w) = &self.window {
             w.request_redraw();
         }
