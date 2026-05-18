@@ -33,8 +33,10 @@ example name *args:
 #     (mise の shim が PATH に乗っていれば cargo-wix がそのまま呼べる)
 # インストーラの Custom Setup ダイアログで「Launch at Windows startup」を
 # チェック/外しでログオン時自動起動を切替できる。
+# cargo-wix の binary は `cargo wix ...` 想定で clap が組まれているので、
+# 直接呼ぶ場合も最初の引数に `wix` を付ける。
 installer:
-    cargo-wix --nocapture
+    cargo-wix wix --nocapture
 
 # --- checks ----------------------------------------------------------------
 

@@ -43,7 +43,7 @@ jobs:
           cache: true
 
       - name: Build MSI installer
-        run: cargo-wix --no-build --nocapture
+        run: cargo-wix wix --no-build --nocapture
 
       - name: Package MSI
         shell: pwsh
