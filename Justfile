@@ -30,10 +30,11 @@ example name *args:
 # 前提:
 #   - WiX Toolset 3 (https://github.com/wixtoolset/wix3/releases) がインストール済み
 #   - cargo-wix は mise.toml で固定済み。初回は `mise install` で取得する
+#     (mise の shim が PATH に乗っていれば cargo-wix がそのまま呼べる)
 # インストーラの Custom Setup ダイアログで「Launch at Windows startup」を
 # チェック/外しでログオン時自動起動を切替できる。
 installer:
-    mise exec -- cargo wix --nocapture
+    cargo-wix --nocapture
 
 # --- checks ----------------------------------------------------------------
 

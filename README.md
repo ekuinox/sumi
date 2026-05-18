@@ -53,7 +53,7 @@ mise install                 # mise.toml で固定された cargo-wix が入る 
 just installer               # target/wix/sumi-<version>-x86_64.msi が出る
 ```
 
-`just installer` は内部で `mise exec -- cargo wix` を呼ぶので、cargo-wix の差はバージョン管理されたものに揃う。
+`just installer` は内部で `cargo-wix` を直接呼ぶ。mise の shim が PATH に乗っているのが前提なので、別シェルから叩く場合は `mise activate` 済みであることを確認。
 
 初回起動時に `config.toml` と隣接する `assets/*.wgsl` (binary に埋め込んだ既定シェーダー一式) が自動で書き出される。シェーダーの切替はタスクトレイの **Choose shader...** か、`config.toml` の `shader` フィールドを書き換える。
 
