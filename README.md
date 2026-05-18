@@ -26,6 +26,18 @@ Spotify の出力 (ハードウェアループバック経由) を浮動小窓�
 - DirectX 12 が動く GPU (= 大抵の現行 Windows マシン)
 - WASAPI で見える入力デバイス (オーディオ I/F のマイク / line in / ハードウェアループバック等)
 
+### インストール (MSI)
+
+GitHub Release の `sumi-<version>-windows-x64.msi` をダウンロードして実行する。
+
+- per-user インストール (管理者権限不要、`%LOCALAPPDATA%\Programs\sumi\` に展開)
+- スタートメニューに `sumi` ショートカット
+- セットアップ中の **Custom Setup** ダイアログで **Launch at Windows startup** をチェックしておくと、ログオン時の自動起動 (`HKCU\Software\Microsoft\Windows\CurrentVersion\Run\sumi`) が登録される
+  - 後から「設定 → アプリ → スタートアップ」でいつでもオン/オフできる
+  - インストーラを再実行して Change → Custom Setup でも切替可能
+
+`sumi-<version>-windows-x64.exe` だけ欲しい場合は exe アセットを直接落とせば動く (インストール不要、ポータブル運用)。
+
 ### ビルド & 実行
 
 ```powershell
@@ -33,6 +45,15 @@ just run                     # cargo run と同じ
 just config <path>           # 任意の config.toml で起動
 cargo run -- --config <path> # 同上 (just を使わない場合)
 ```
+
+ローカルで MSI を作るには WiX Toolset 3 (`https://github.com/wixtoolset/wix3/releases`) を入れ、cargo-wix を `mise install` で取得した上で:
+
+```powershell
+mise install                 # mise.toml で固定された cargo-wix が入る (初回のみ)
+just installer               # target/wix/sumi-<version>-x86_64.msi が出る
+```
+
+`just installer` は内部で `mise exec -- cargo wix` を呼ぶので、cargo-wix の差はバージョン管理されたものに揃う。
 
 初回起動時に `config.toml` と隣接する `assets/*.wgsl` (binary に埋め込んだ既定シェーダー一式) が自動で書き出される。シェーダーの切替はタスクトレイの **Choose shader...** か、`config.toml` の `shader` フィールドを書き換える。
 

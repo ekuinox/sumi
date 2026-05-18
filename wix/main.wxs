@@ -1,0 +1,146 @@
+<?xml version='1.0' encoding='utf-8'?>
+
+<!--
+  sumi の MSI installer 定義 (WiX 3.x)。
+  `cargo wix` から候補 (candle) → リンク (light) で .msi を生成する。
+
+  方針:
+  - per-user install (管理者権限不要、`%LOCALAPPDATA%\Programs\sumi\` 配下)
+  - スタートメニューにショートカット
+  - Windows ログオン時の自動起動は Feature で opt-in (UI のチェックで切替)
+    → HKCU\Software\Microsoft\Windows\CurrentVersion\Run\sumi に exe パスを登録
+
+  GUID は固定。一度公開した値は壊さない (upgrade 判定や component 同定に使われるため)。
+-->
+
+<Wix xmlns='http://schemas.microsoft.com/wix/2006/wi'>
+    <Product
+        Id='*'
+        Name='sumi'
+        UpgradeCode='BEBB068A-3AD9-4B01-BE6B-50960FB5C607'
+        Manufacturer='ekuinox'
+        Language='1033'
+        Codepage='1252'
+        Version='$(var.Version)'>
+
+        <Package
+            Id='*'
+            Keywords='Installer'
+            Description='sumi $(var.Version) Installer'
+            Manufacturer='ekuinox'
+            InstallerVersion='500'
+            Languages='1033'
+            Compressed='yes'
+            InstallScope='perUser'
+            InstallPrivileges='limited'
+            SummaryCodepage='1252'/>
+
+        <MajorUpgrade
+            Schedule='afterInstallInitialize'
+            AllowSameVersionUpgrades='yes'
+            DowngradeErrorMessage='A newer version of [ProductName] is already installed. Setup will now exit.'/>
+
+        <MediaTemplate EmbedCab='yes'/>
+
+        <!-- per-user MSI のお作法 (Admin 権限不要のため必須) -->
+        <Property Id='MSIINSTALLPERUSER' Value='1'/>
+        <Property Id='ALLUSERS' Value='2'/>
+        <Property Id='ARPNOMODIFY' Value='1'/>
+
+        <Property Id='ARPHELPLINK' Value='https://github.com/ekuinox/sumi'/>
+        <Property Id='ARPURLINFOABOUT' Value='https://github.com/ekuinox/sumi'/>
+
+        <Directory Id='TARGETDIR' Name='SourceDir'>
+            <Directory Id='LocalAppDataFolder'>
+                <Directory Id='ProgramsFolder' Name='Programs'>
+                    <Directory Id='INSTALLDIR' Name='sumi'>
+
+                        <Component Id='MainExecutable'
+                                   Guid='B9F65C78-AC3E-4D21-A650-963A2AC57F6F'>
+                            <File Id='SumiExe'
+                                  Name='sumi.exe'
+                                  Source='$(var.CargoTargetBinDir)\sumi.exe'
+                                  DiskId='1'
+                                  KeyPath='yes'/>
+                            <RemoveFolder Id='RemoveInstallDir' On='uninstall'/>
+                            <RegistryValue Root='HKCU'
+                                           Key='Software\sumi'
+                                           Name='installed'
+                                           Type='integer'
+                                           Value='1'
+                                           KeyPath='no'/>
+                        </Component>
+
+                        <!--
+                          スタートアップ登録用 Component。
+                          Feature 単位で opt-in されると HKCU の Run キーに sumi の
+                          exe パスが書かれて、次回ログオンから自動起動する。
+                          Feature を選ばずインストールするか後で削除した場合は
+                          この Component ごとアンインストールされる = Run キーも消える。
+                        -->
+                        <Component Id='StartupRegistration'
+                                   Guid='DB3D0C01-192D-4FD9-95D8-A74C5B4EC1E5'>
+                            <RegistryValue Root='HKCU'
+                                           Key='Software\Microsoft\Windows\CurrentVersion\Run'
+                                           Name='sumi'
+                                           Type='string'
+                                           Value='"[#SumiExe]"'
+                                           KeyPath='yes'/>
+                        </Component>
+
+                    </Directory>
+                </Directory>
+            </Directory>
+
+            <Directory Id='ProgramMenuFolder'>
+                <Directory Id='ApplicationProgramsFolder' Name='sumi'>
+                    <Component Id='ApplicationShortcut'
+                               Guid='35155ADF-51E5-4C82-B5CB-F79A5B531188'>
+                        <Shortcut Id='StartMenuShortcut'
+                                  Name='sumi'
+                                  Description='Realtime audio visualizer'
+                                  Target='[#SumiExe]'
+                                  WorkingDirectory='INSTALLDIR'/>
+                        <RemoveFolder Id='RemoveStartMenuFolder' On='uninstall'/>
+                        <RegistryValue Root='HKCU'
+                                       Key='Software\sumi'
+                                       Name='startmenu'
+                                       Type='integer'
+                                       Value='1'
+                                       KeyPath='yes'/>
+                    </Component>
+                </Directory>
+            </Directory>
+        </Directory>
+
+        <!--
+          UI で見えるのは大きく 2 つの Feature:
+          - MainFeature: 本体 + ショートカット (Absent=disallow なので外せない)
+          - StartupFeature: スタートアップ登録 (デフォルト ON、Custom Setup でチェック外せる)
+        -->
+        <Feature Id='MainFeature'
+                 Title='sumi'
+                 Description='sumi.exe and the Start Menu shortcut.'
+                 Display='expand'
+                 Level='1'
+                 ConfigurableDirectory='INSTALLDIR'
+                 AllowAdvertise='no'
+                 Absent='disallow'>
+            <ComponentRef Id='MainExecutable'/>
+            <ComponentRef Id='ApplicationShortcut'/>
+        </Feature>
+
+        <Feature Id='StartupFeature'
+                 Title='Launch at Windows startup'
+                 Description='Register sumi to run automatically when you log on (HKCU\Software\Microsoft\Windows\CurrentVersion\Run).'
+                 Level='1'
+                 AllowAdvertise='no'>
+            <ComponentRef Id='StartupRegistration'/>
+        </Feature>
+
+        <!-- Custom Setup ダイアログで Feature ツリー (= スタートアップ on/off) を見せる -->
+        <UI>
+            <UIRef Id='WixUI_FeatureTree'/>
+        </UI>
+    </Product>
+</Wix>
