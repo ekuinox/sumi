@@ -45,8 +45,9 @@
         <!-- per-user MSI のお作法 (Admin 権限不要のため必須) -->
         <Property Id='MSIINSTALLPERUSER' Value='1'/>
         <Property Id='ALLUSERS' Value='2'/>
-        <Property Id='ARPNOMODIFY' Value='1'/>
 
+        <!-- ARPNOMODIFY は付けない: Add/Remove Programs の Modify ボタンから
+             Custom Setup に戻ってスタートアップ登録を切り替えられるようにするため。 -->
         <Property Id='ARPHELPLINK' Value='https://github.com/ekuinox/sumi'/>
         <Property Id='ARPURLINFOABOUT' Value='https://github.com/ekuinox/sumi'/>
 
@@ -55,20 +56,33 @@
                 <Directory Id='ProgramsFolder' Name='Programs'>
                     <Directory Id='INSTALLDIR' Name='sumi'>
 
+                        <!--
+                          per-user で user profile 配下にインストールする Component は
+                          ICE38 により File ではなく HKCU レジストリを KeyPath にする
+                          必要がある。File の KeyPath は no にして、HKCU 配下に
+                          「インストール済みフラグ」を書いてそれを KeyPath にする。
+
+                          RemoveFolder を 2 つ持っているのは ICE64 対策:
+                          中間ディレクトリの `Programs` も user profile 配下なので
+                          uninstall 時に空なら除去する。
+                        -->
                         <Component Id='MainExecutable'
                                    Guid='B9F65C78-AC3E-4D21-A650-963A2AC57F6F'>
                             <File Id='SumiExe'
                                   Name='sumi.exe'
                                   Source='$(var.CargoTargetBinDir)\sumi.exe'
                                   DiskId='1'
-                                  KeyPath='yes'/>
+                                  KeyPath='no'/>
                             <RemoveFolder Id='RemoveInstallDir' On='uninstall'/>
+                            <RemoveFolder Id='RemoveProgramsFolder'
+                                          Directory='ProgramsFolder'
+                                          On='uninstall'/>
                             <RegistryValue Root='HKCU'
                                            Key='Software\sumi'
                                            Name='installed'
                                            Type='integer'
                                            Value='1'
-                                           KeyPath='no'/>
+                                           KeyPath='yes'/>
                         </Component>
 
                         <!--
@@ -77,6 +91,10 @@
                           exe パスが書かれて、次回ログオンから自動起動する。
                           Feature を選ばずインストールするか後で削除した場合は
                           この Component ごとアンインストールされる = Run キーも消える。
+
+                          Value は `[#SumiExe]` ではなく `[INSTALLDIR]sumi.exe` を使う:
+                          `[#File]` 形式だと別 Feature 間のファイル参照になり ICE69 で
+                          エラーになるため、ディレクトリ Property 経由で組み立てる。
                         -->
                         <Component Id='StartupRegistration'
                                    Guid='DB3D0C01-192D-4FD9-95D8-A74C5B4EC1E5'>
@@ -84,7 +102,7 @@
                                            Key='Software\Microsoft\Windows\CurrentVersion\Run'
                                            Name='sumi'
                                            Type='string'
-                                           Value='"[#SumiExe]"'
+                                           Value='"[INSTALLDIR]sumi.exe"'
                                            KeyPath='yes'/>
                         </Component>
 
@@ -96,10 +114,13 @@
                 <Directory Id='ApplicationProgramsFolder' Name='sumi'>
                     <Component Id='ApplicationShortcut'
                                Guid='35155ADF-51E5-4C82-B5CB-F79A5B531188'>
+                        <!-- Target は `[#SumiExe]` ではなく Property 展開を使う:
+                             同 Feature 内なので ICE69 はエラーにはならないが
+                             warning が出るので組み立てで揃える。 -->
                         <Shortcut Id='StartMenuShortcut'
                                   Name='sumi'
                                   Description='Realtime audio visualizer'
-                                  Target='[#SumiExe]'
+                                  Target='[INSTALLDIR]sumi.exe'
                                   WorkingDirectory='INSTALLDIR'/>
                         <RemoveFolder Id='RemoveStartMenuFolder' On='uninstall'/>
                         <RegistryValue Root='HKCU'
