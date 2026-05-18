@@ -18,8 +18,12 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
 
-      - name: Install just
-        uses: extractions/setup-just@v2
+      # just は mise.toml で固定。release ワークフローと同じく mise 経由で揃える。
+      - name: Setup mise
+        uses: jdx/mise-action@v2
+        with:
+          install: true
+          cache: true
 
       - name: just validate
-        run: just validate
+        run: mise exec -- just validate

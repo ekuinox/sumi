@@ -7,4 +7,7 @@
 # CI からも同じ mise.toml を読むので、ローカルと CI で完全に同じバージョンが使われる。
 
 [tools]
+# タスクランナー。aqua backend で prebuilt binary をそのまま落とすので速い。
+just = "1.51.0"
+# MSI installer ジェネレータ。WiX Toolset 3 と組み合わせて使う。
 "cargo:cargo-wix" = "0.3.9"
