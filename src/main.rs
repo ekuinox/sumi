@@ -3,6 +3,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod audio;
+mod build_info;
 mod config;
 mod dsp;
 mod floating;
@@ -192,6 +193,8 @@ impl App {
                 choose_shader_requested = true;
             } else if ev.id == tray.open_config_id {
                 open_config_location(&self.config_path);
+            } else if ev.id == tray.about_id {
+                show_about_dialog(&self.config_path);
             } else if ev.id == tray.restart_id {
                 log::info!("restart requested via tray");
                 spawn_restart();
@@ -608,6 +611,20 @@ fn relativize_under(
     let base = config_path.parent()?.canonicalize().ok()?;
     let canon = picked.canonicalize().ok()?;
     canon.strip_prefix(&base).ok().map(|p| p.to_path_buf())
+}
+
+/// About ダイアログ。バージョン / コミットハッシュ / ビルド時刻 / 設定ファイルパスを
+/// rfd の MessageDialog でモーダル表示する。バグ報告時にここをスクショして
+/// もらえばどのビルドの sumi か特定できる。
+fn show_about_dialog(config_path: &std::path::Path) {
+    let body = build_info::summary(config_path);
+    log::info!("about: {}", body.replace('\n', " | "));
+    rfd::MessageDialog::new()
+        .set_title("About sumi")
+        .set_description(&body)
+        .set_level(rfd::MessageLevel::Info)
+        .set_buttons(rfd::MessageButtons::Ok)
+        .show();
 }
 
 /// 設定ファイルを Explorer で選択状態で開く (`explorer.exe /select,<path>`)。

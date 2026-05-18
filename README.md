@@ -75,8 +75,20 @@ just installer               # target/wix/sumi-<version>-x86_64.msi が出る
 | Audio device ▶ | 入力デバイスを選択 (再起動で反映) |
 | Choose shader... | ファイルダイアログで `*.wgsl` を選んで切替 (再起動で反映) |
 | Open config folder | エクスプローラで config.toml を選択状態で開く |
+| About sumi... | バージョン / コミットハッシュ / ビルド時刻 / config パスをダイアログ表示 |
 | Restart | プロセスを再起動 |
 | Quit | 終了 |
+
+### About ダイアログのコミットハッシュ
+
+`About sumi...` で表示するコミットハッシュは、ビルド時に `build.rs` 経由で次の順に解決して `cargo:rustc-env=SUMI_COMMIT_HASH=...` で埋め込みます。
+
+1. `SUMI_COMMIT_HASH` 環境変数 (手動 override)
+2. `GITHUB_SHA` 環境変数 (GitHub Actions が自動で渡してくる)
+3. `git rev-parse --short HEAD` (ローカル開発)
+4. 解決できなければ `unknown`
+
+ビルド時刻も `SUMI_BUILD_TIMESTAMP` として UTC ISO 8601 形式で埋め込みます。GitHub Actions の release / ci 双方で自動的に埋まるので、リリース版でも `About sumi...` から実体のコミットを特定できます。
 
 タスクトレイのアイコン自体は 32x32 のミニビジュアライザになっていて、現在のバー値が緑→黄→赤の VU メータで表示される。
 

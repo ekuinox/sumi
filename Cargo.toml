@@ -52,3 +52,8 @@ windows = { version = "0.53.0", features = [
 # Examples で参照する旧依存。本体には不要なので dev-dependencies に寄せたいが、
 # examples 自体は cargo の都合で通常 [dependencies] を見るのでそのまま残す。
 [dev-dependencies]
+
+# build.rs 用。コミットハッシュ + ビルド時刻を `cargo:rustc-env` で埋め込むのに使う。
+# default-features を切って必要最小限 (std + clock) だけ取り込む。
+[build-dependencies]
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }

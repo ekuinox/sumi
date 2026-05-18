@@ -23,6 +23,7 @@ pub struct Tray {
     pub floating_toggle_id: MenuId,
     pub choose_shader_id: MenuId,
     pub open_config_id: MenuId,
+    pub about_id: MenuId,
     pub restart_id: MenuId,
     pub quit_id: MenuId,
     /// 浮動モード用の「Move to」 サブメニュー: 4 隅 + 4 辺
@@ -140,6 +141,7 @@ impl Tray {
 
         let choose_shader = MenuItem::new("Choose shader...", true, None);
         let open_config = MenuItem::new("Open config folder", true, None);
+        let about = MenuItem::new("About sumi...", true, None);
         let restart = MenuItem::new("Restart", true, None);
         let quit = MenuItem::new("Quit", true, None);
 
@@ -158,6 +160,7 @@ impl Tray {
             .context("append separator")?;
         menu.append(&open_config)
             .context("append Open config folder")?;
+        menu.append(&about).context("append About menu item")?;
         menu.append(&restart).context("append Restart menu item")?;
         menu.append(&quit).context("append Quit menu item")?;
 
@@ -166,6 +169,7 @@ impl Tray {
         let floating_toggle_id = floating_toggle.id().clone();
         let choose_shader_id = choose_shader.id().clone();
         let open_config_id = open_config.id().clone();
+        let about_id = about.id().clone();
         let restart_id = restart.id().clone();
         let quit_id = quit.id().clone();
         let move_tl_id = m_tl.id().clone();
@@ -195,6 +199,7 @@ impl Tray {
             floating_toggle_id,
             choose_shader_id,
             open_config_id,
+            about_id,
             restart_id,
             quit_id,
             move_tl_id,
