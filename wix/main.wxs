@@ -159,9 +159,33 @@
             <ComponentRef Id='StartupRegistration'/>
         </Feature>
 
+        <!--
+          完了画面に「Launch sumi」チェックボックスを出して、チェック ON なら
+          そのまま起動する。WixUtilExtension の WixShellExec を使うので
+          別 binary を埋め込む必要はない。
+          - WixShellExecTarget: 起動対象 exe (File table 解決)
+          - WixShellExec は内部の ShellExecute がプロセス終了を待たないので
+            sumi のような常駐アプリでもインストーラ側はブロックしない
+          - WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT: チェックボックスのラベル
+          - WIXUI_EXITDIALOGOPTIONALCHECKBOX=1: デフォルト ON
+          - 条件 `NOT Installed`: 初回 install 時のみ (Modify/Repair では発火しない)
+        -->
+        <Property Id='WixShellExecTarget' Value='[#SumiExe]'/>
+        <CustomAction Id='LaunchSumi'
+                      BinaryKey='WixCA'
+                      DllEntry='WixShellExec'
+                      Impersonate='yes'/>
+
+        <Property Id='WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT' Value='Launch sumi'/>
+        <Property Id='WIXUI_EXITDIALOGOPTIONALCHECKBOX' Value='1'/>
+
         <!-- Custom Setup ダイアログで Feature ツリー (= スタートアップ on/off) を見せる -->
         <UI>
             <UIRef Id='WixUI_FeatureTree'/>
+            <Publish Dialog='ExitDialog'
+                     Control='Finish'
+                     Event='DoAction'
+                     Value='LaunchSumi'>WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed</Publish>
         </UI>
     </Product>
 </Wix>
