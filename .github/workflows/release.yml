@@ -31,12 +31,34 @@ jobs:
         run: |
           $name = "sumi-${{ github.ref_name }}-windows-x64.exe"
           Copy-Item target/release/sumi.exe $name
-          "ASSET_NAME=$name" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "EXE_ASSET=$name" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      # MSI installer (per-user, スタートアップ登録 opt-in)。
+      # windows-latest runner には WiX Toolset 3 が同梱されているので
+      # あとは mise.toml で固定された cargo-wix を入れればビルドできる。
+      - name: Setup mise
+        uses: jdx/mise-action@v2
+        with:
+          install: true
+          cache: true
+
+      - name: Build MSI installer
+        run: cargo-wix wix --no-build --nocapture
+
+      - name: Package MSI
+        shell: pwsh
+        run: |
+          $msi = Get-ChildItem target/wix/*.msi | Select-Object -First 1
+          $name = "sumi-${{ github.ref_name }}-windows-x64.msi"
+          Copy-Item $msi.FullName $name
+          "MSI_ASSET=$name" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ env.ASSET_NAME }}
+          files: |
+            ${{ env.EXE_ASSET }}
+            ${{ env.MSI_ASSET }}
           generate_release_notes: true
           draft: false
           prerelease: false

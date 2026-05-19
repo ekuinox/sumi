@@ -1,0 +1,13 @@
+# mise (https://mise.jdx.dev) でこのリポジトリで使う追加ツールを固定する。
+#
+# Rust toolchain は rust-toolchain.toml が rustup 経由で固定するのでここでは扱わない
+# (二重管理を避ける)。ここに入れるのは cargo で配布される単発の CLI のみ。
+#
+# 使い方: `mise install` で .msi ビルドに必要な cargo-wix が固定バージョンで入る。
+# CI からも同じ mise.toml を読むので、ローカルと CI で完全に同じバージョンが使われる。
+
+[tools]
+# タスクランナー。aqua backend で prebuilt binary をそのまま落とすので速い。
+just = "1.51.0"
+# MSI installer ジェネレータ。WiX Toolset 3 と組み合わせて使う。
+"cargo:cargo-wix" = "0.3.9"

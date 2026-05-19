@@ -24,6 +24,20 @@ build-release:
 example name *args:
     cargo run --example {{name}} -- {{args}}
 
+# --- installer (MSI) -------------------------------------------------------
+
+# WiX 3.x + cargo-wix で per-user MSI を作る。出力は `target/wix/sumi-<version>-x86_64.msi`。
+# 前提:
+#   - WiX Toolset 3 (https://github.com/wixtoolset/wix3/releases) がインストール済み
+#   - cargo-wix は mise.toml で固定済み。初回は `mise install` で取得する
+#     (mise の shim が PATH に乗っていれば cargo-wix がそのまま呼べる)
+# インストーラの Custom Setup ダイアログで「Launch at Windows startup」を
+# チェック/外しでログオン時自動起動を切替できる。
+# cargo-wix の binary は `cargo wix ...` 想定で clap が組まれているので、
+# 直接呼ぶ場合も最初の引数に `wix` を付ける。
+installer:
+    cargo-wix wix --nocapture
+
 # --- checks ----------------------------------------------------------------
 
 fmt:

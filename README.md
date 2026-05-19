@@ -26,6 +26,18 @@ Spotify の出力 (ハードウェアループバック経由) を浮動小窓�
 - DirectX 12 が動く GPU (= 大抵の現行 Windows マシン)
 - WASAPI で見える入力デバイス (オーディオ I/F のマイク / line in / ハードウェアループバック等)
 
+### インストール (MSI)
+
+GitHub Release の `sumi-<version>-windows-x64.msi` をダウンロードして実行する。
+
+- per-user インストール (管理者権限不要、`%LOCALAPPDATA%\Programs\sumi\` に展開)
+- スタートメニューに `sumi` ショートカット
+- セットアップ中の **Custom Setup** ダイアログで **Launch at Windows startup** をチェックしておくと、ログオン時の自動起動 (`HKCU\Software\Microsoft\Windows\CurrentVersion\Run\sumi`) が登録される
+  - 後から「設定 → アプリ → スタートアップ」でいつでもオン/オフできる
+  - インストーラを再実行して Change → Custom Setup でも切替可能
+
+`sumi-<version>-windows-x64.exe` だけ欲しい場合は exe アセットを直接落とせば動く (インストール不要、ポータブル運用)。
+
 ### ビルド & 実行
 
 ```powershell
@@ -33,6 +45,15 @@ just run                     # cargo run と同じ
 just config <path>           # 任意の config.toml で起動
 cargo run -- --config <path> # 同上 (just を使わない場合)
 ```
+
+ローカルで MSI を作るには WiX Toolset 3 (`https://github.com/wixtoolset/wix3/releases`) を入れ、cargo-wix を `mise install` で取得した上で:
+
+```powershell
+mise install                 # mise.toml で固定された cargo-wix が入る (初回のみ)
+just installer               # target/wix/sumi-<version>-x86_64.msi が出る
+```
+
+`just installer` は内部で `cargo-wix` を直接呼ぶ。mise の shim が PATH に乗っているのが前提なので、別シェルから叩く場合は `mise activate` 済みであることを確認。
 
 初回起動時に `config.toml` と隣接する `assets/*.wgsl` (binary に埋め込んだ既定シェーダー一式) が自動で書き出される。シェーダーの切替はタスクトレイの **Choose shader...** か、`config.toml` の `shader` フィールドを書き換える。
 
@@ -54,8 +75,20 @@ cargo run -- --config <path> # 同上 (just を使わない場合)
 | Audio device ▶ | 入力デバイスを選択 (再起動で反映) |
 | Choose shader... | ファイルダイアログで `*.wgsl` を選んで切替 (再起動で反映) |
 | Open config folder | エクスプローラで config.toml を選択状態で開く |
+| About sumi... | バージョン / コミットハッシュ / ビルド時刻 / config パスをダイアログ表示 |
 | Restart | プロセスを再起動 |
 | Quit | 終了 |
+
+### About ダイアログのコミットハッシュ
+
+`About sumi...` で表示するコミットハッシュは、ビルド時に `build.rs` 経由で次の順に解決して `cargo:rustc-env=SUMI_COMMIT_HASH=...` で埋め込みます。
+
+1. `SUMI_COMMIT_HASH` 環境変数 (手動 override)
+2. `GITHUB_SHA` 環境変数 (GitHub Actions が自動で渡してくる)
+3. `git rev-parse --short HEAD` (ローカル開発)
+4. 解決できなければ `unknown`
+
+ビルド時刻も `SUMI_BUILD_TIMESTAMP` として UTC ISO 8601 形式で埋め込みます。GitHub Actions の release / ci 双方で自動的に埋まるので、リリース版でも `About sumi...` から実体のコミットを特定できます。
 
 タスクトレイのアイコン自体は 32x32 のミニビジュアライザになっていて、現在のバー値が緑→黄→赤の VU メータで表示される。
 

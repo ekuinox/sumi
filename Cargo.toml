@@ -2,10 +2,23 @@
 name = "sumi"
 version = "0.1.0"
 edition = "2021"
+description = "Windows realtime audio visualizer (WASAPI + wgpu + WGSL)."
+license = "MIT"
+authors = ["ekuinox"]
 
 [[bin]]
 name = "sumi"
 path = "src/main.rs"
+
+# cargo-wix (MSI installer generator) 用メタデータ。
+# GUID は固定値: upgrade-guid は同一製品の upgrade 判定、path-guid は
+# install 先ディレクトリの Component GUID として使われる。
+# 一度公開した値は壊さない (= 後方互換のため変更しない)。
+[package.metadata.wix]
+upgrade-guid = "BEBB068A-3AD9-4B01-BE6B-50960FB5C607"
+path-guid    = "B9F65C78-AC3E-4D21-A650-963A2AC57F6F"
+license      = false
+eula         = false
 
 [dependencies]
 anyhow = { version = "1.0.80", features = ["backtrace"] }
@@ -39,3 +52,8 @@ windows = { version = "0.53.0", features = [
 # Examples で参照する旧依存。本体には不要なので dev-dependencies に寄せたいが、
 # examples 自体は cargo の都合で通常 [dependencies] を見るのでそのまま残す。
 [dev-dependencies]
+
+# build.rs 用。コミットハッシュ + ビルド時刻を `cargo:rustc-env` で埋め込むのに使う。
+# default-features を切って必要最小限 (std + clock) だけ取り込む。
+[build-dependencies]
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
