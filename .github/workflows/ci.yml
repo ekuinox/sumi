@@ -26,4 +26,4 @@ jobs:
           cache: true
 
       - name: just validate
-        run: mise exec -- just validate
+        run: just validate
